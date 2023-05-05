@@ -80,6 +80,36 @@ module ``String Format Tests`` =
         Assert.areEqual (sprintf "%u" 1un) "1"
         Assert.areEqual (sprintf "%u" -1n) (if System.IntPtr.Size = 4 then "4294967295" else "18446744073709551615")
 
+
+    type public Public = { Foo: string; Bar: int }
+    type private Private = { Foo: string; Bar: int }
+
+    let public ``sprintf with %A format specifier - public value``: Public = { Foo = "hello world"; Bar = 42 }
+    let private ``sprintf with %A format specifier - private value``: Private = { Foo = "hello world"; Bar = 42 }
+
+    [<Test>]
+    let ``sprintf with %A format specifier``() =
+        // Regression test for https://github.com/dotnet/fsharp/issues/14557
+        // format specifier %A does not respect format specifiers on private types.
+        let expected = """{ Foo = "hello world" Bar = 42 }"""
+
+        let actual_public = sprintf "%0A" ``sprintf with %A format specifier - public value``
+        let actual_private_workaround = sprintf "%0+A" ``sprintf with %A format specifier - private value``
+        let actual_private = sprintf "%0A" ``sprintf with %A format specifier - private value``
+
+        let actual_public_interpolated = $"%0A{``sprintf with %A format specifier - public value``}"
+        let actual_private_interpolated_workaround = $"%0+A{``sprintf with %A format specifier - private value``}"
+        let actual_private_interpolated = $"%0A{``sprintf with %A format specifier - private value``}"
+
+        Assert.areEqual expected actual_public
+        Assert.areEqual expected actual_private_workaround
+        Assert.areEqual expected actual_private (* <- this fails *)
+
+        Assert.areEqual expected actual_public_interpolated
+        Assert.areEqual expected actual_private_interpolated_workaround
+        Assert.areEqual expected actual_private_interpolated (* <- this fails *)
+
+
     [<Test>]
     let ``string constructor``() =
         // Regression test for FSHARP1.0:5894
