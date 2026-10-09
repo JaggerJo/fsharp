@@ -3062,7 +3062,7 @@ let TcStaticUpcast (cenv: cenv) denv mSourceExpr mUpcastExpr tgtTy srcTy =
         if not (destTyparTy g tgtTy).IsCompatFlex then
             error(IndeterminateStaticCoercion(denv, srcTy, tgtTy, mUpcastExpr))
 
-    if isSealedTy g tgtTy && not (isTyparTy g tgtTy) then
+    if isSealedTy g tgtTy && not (isTyparTy g tgtTy) && not (isPolyVariantTy g tgtTy) then
         warning(CoercionTargetSealed(denv, tgtTy, mUpcastExpr))
 
     if typeEquiv g srcTy tgtTy then

@@ -105,6 +105,49 @@ let r = withSquares (`Square 2.0)
         |> withDiagnostics []
 
     [<Fact>]
+    let ``An exact variant type upcasts to one with more tags`` () =
+        FSharp """
+module M
+type Color = [ `Red | `Green ]
+type Rgba = [ Color | `Alpha of byte ]
+let red : Color = `Red
+let colors : Rgba list = [ red :> Rgba; `Alpha 3uy ]
+"""
+        |> withLangVersionPreview
+        |> typecheck
+        |> shouldSucceed
+        |> withDiagnostics []
+
+    [<Theory>]
+    [<InlineData("(`Alpha 1uy : Rgba) :> Color")>]
+    [<InlineData("(`Red : Color) :> [ `Red of int | `Green ]")>]
+    let ``An upcast must keep every tag and payload`` (coercion: string) =
+        FSharp $"""
+module M
+type Color = [ `Red | `Green ]
+type Rgba = [ Color | `Alpha of byte ]
+let bad = {coercion}
+"""
+        |> withLangVersionPreview
+        |> typecheck
+        |> shouldFail
+        |> withErrorCode 193
+
+    [<Fact>]
+    let ``A closed match over more tags than a Choice type has is complete`` () =
+        FSharp """
+module M
+let day x =
+    match x with
+    | `Mon -> 1 | `Tue -> 2 | `Wed -> 3 | `Thu -> 4 | `Fri -> 5 | `Sat -> 6 | `Sun -> 7
+    | `Holiday name -> String.length name | `Leap -> 29 | `Other n -> n
+"""
+        |> withLangVersionPreview
+        |> typecheck
+        |> shouldSucceed
+        |> withDiagnostics []
+
+    [<Fact>]
     let ``Only exact variant types can be included`` () =
         FSharp """
 module M
@@ -249,6 +292,12 @@ let main _ =
     check "area" (List.sumBy area [ `Circle 1.0; `Rect (2.0, 3.0) ]) 9.0
     check "isRound" [ isRound (`Circle 2.0); isRound `Square ] [ true; false ]
     check "both" [ both `On `On; both `On `Off; both `Off `On ] [ 1; 2; 3 ]
+    let day x =
+        match x with
+        | `Mon -> 1 | `Tue -> 2 | `Wed -> 3 | `Thu -> 4 | `Fri -> 5 | `Sat -> 6 | `Sun -> 7
+        | `Holiday (name: string) -> name.Length | `Leap -> 29 | `Other n -> n
+
+    check "many tags" (List.map day [ `Mon; `Sun; `Holiday "xmas"; `Leap; `Other 42 ]) [ 1; 7; 4; 29; 42 ]
     check "equality" [ `A 1 = `A 1; `A 1 = `A 2; `A 1 = `B ] [ true; false; false ]
     check "ordering" (List.sort [ `B 2; `A 3; `A 1 ] |> List.map (function `A n -> n | `B n -> -n)) [ 1; 3; -2 ]
     check "describe" [ describe (`Num 3); describe (`Neg (`Num 4)); describe (`Neg `Zero) ] [ "3"; "-4"; "-?" ]

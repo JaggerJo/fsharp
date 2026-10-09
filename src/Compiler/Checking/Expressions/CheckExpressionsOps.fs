@@ -687,12 +687,7 @@ let rec private visitPolyVariantPositions
     | TPat_error _ -> onTest path
 
 /// Replace the tag patterns at the given closed positions by cases of one total active pattern per position
-let rec private closePolyVariantPositions
-    g
-    path
-    (closed: Map<string list, string list * (string list -> Pattern -> range -> Pattern)>)
-    pat
-    =
+let rec private closePolyVariantPositions g path (closed: Map<string list, string -> Pattern -> range -> Pattern>) pat =
     let recurse p path =
         closePolyVariantPositions g path closed p
 
@@ -704,7 +699,7 @@ let rec private closePolyVariantPositions
         let subPat = recurse subPat (polyVariantCaseName tag :: path)
 
         match closed.TryFind path with
-        | Some(_, mkCase) -> mkCase [ tag ] subPat m
+        | Some mkCase -> mkCase tag subPat m
         | None ->
             match pat with
             | TPat_query(q, _, m) -> TPat_query(q, subPat, m)
@@ -713,9 +708,8 @@ let rec private closePolyVariantPositions
         let subPat = recurse subPat ("#" :: path)
 
         match closed.TryFind path, tryDestPolyVariantTy g variantTy with
-        | Some(_, mkCase), ValueSome(struct (tags, _)) ->
-            let anyTagOfType =
-                TPat_disjs([ for tag in tags -> mkCase [ tag ] (TPat_wild m) m ], m)
+        | Some mkCase, ValueSome(struct (tags, _)) ->
+            let anyTagOfType = TPat_disjs([ for tag in tags -> mkCase tag (TPat_wild m) m ], m)
 
             TPat_conjs([ anyTagOfType; mkPolyVariantNarrowPattern m scrutTy variantTy subPat ], m)
         | _ ->
@@ -738,38 +732,56 @@ let rec private closePolyVariantPositions
     | TPat_null _
     | TPat_error _ -> pat
 
-/// The largest number of tags a closed position can be fused into a total active pattern for, the size of the largest Choice type
-let private maxClosedPolyVariantTags = 7
+/// The most cases a total active pattern can have, the size of the largest Choice type
+let private maxActivePatternCases = 7
 
-/// Build the total active pattern that splits a value of a closed polymorphic variant type into its tags
-let private mkPolyVariantTotalPattern (g: TcGlobals.TcGlobals) m variantTy (tagsAndTys: (string * TType) list) =
-    let tags = List.map fst tagsAndTys
-    let payloadTys = List.map snd tagsAndTys
-    let n = tagsAndTys.Length
+/// Build the total active pattern that splits a value of a closed polymorphic variant type into its tags, and return
+/// the function building the pattern for one tag. Beyond 7 tags the last case passes the value on to a further
+/// total active pattern over the remaining tags.
+let rec private mkPolyVariantTotalPattern (g: TcGlobals.TcGlobals) m variantTy (tagsAndTys: (string * TType) list) =
+    let direct, rest =
+        if tagsAndTys.Length <= maxActivePatternCases then
+            tagsAndTys, []
+        else
+            List.splitAt (maxActivePatternCases - 1) tagsAndTys
 
-    let apinfo =
-        PrettyNaming.APInfo(true, [ for tag in tags -> polyVariantCaseName tag, m ], m)
+    let restCaseName = "`..."
 
-    let resTy = apinfo.ResultType g m payloadTys ActivePatternReturnKind.RefTypeWrapper
+    let caseNames =
+        [ for tag, _ in direct -> polyVariantCaseName tag ]
+        @ (if rest.IsEmpty then [] else [ restCaseName ])
+
+    let resTys = List.map snd direct @ (if rest.IsEmpty then [] else [ variantTy ])
+    let n = resTys.Length
+    let apinfo = PrettyNaming.APInfo(true, [ for name in caseNames -> name, m ], m)
+    let resTy = apinfo.ResultType g m resTys ActivePatternReturnKind.RefTypeWrapper
 
     let apExpr =
-        mkPolyVariantDestructor g m variantTy resTy (fun _ tagExpr payloadExpr ->
-            let mkResult i payloadTy =
-                let payload = mkPolyVariantUnbox payloadTy payloadExpr m
+        mkPolyVariantDestructor g m variantTy resTy (fun vExpr tagExpr payloadExpr ->
+            let mkResult i =
+                let result =
+                    if i < direct.Length then
+                        mkPolyVariantUnbox (List.item i resTys) payloadExpr m
+                    else
+                        vExpr
 
                 if n = 1 then
-                    payload
+                    result
                 else
-                    mkUnionCaseExpr (mkChoiceCaseRef g m n i, payloadTys, [ payload ], m)
+                    mkUnionCaseExpr (mkChoiceCaseRef g m n i, resTys, [ result ], m)
 
-            // The last tag needs no test: the type allows no other
+            // The last case needs no test: the type allows no other tags
             let rec build i =
-                let tag, payloadTy = List.item i tagsAndTys
-
                 if i = n - 1 then
-                    mkResult i payloadTy
+                    mkResult i
                 else
-                    mkCond DebugPointAtBinding.NoneAtInvisible m resTy (mkTagTest g m tagExpr tag) (mkResult i payloadTy) (build (i + 1))
+                    mkCond
+                        DebugPointAtBinding.NoneAtInvisible
+                        m
+                        resTy
+                        (mkTagTest g m tagExpr (fst (List.item i direct)))
+                        (mkResult i)
+                        (build (i + 1))
 
             build 0)
 
@@ -777,9 +789,20 @@ let private mkPolyVariantTotalPattern (g: TcGlobals.TcGlobals) m variantTy (tags
     let identityVal, _ = mkCompGenLocal m "polyVariantTags" (mkFunTy g variantTy resTy)
     let identity = Some(mkLocalValRef identityVal, [])
 
-    fun (caseTags: string list) subPat mCase ->
-        let idx = tags |> List.findIndex ((=) (List.head caseTags))
-        TPat_query((apExpr, payloadTys, ActivePatternReturnKind.RefTypeWrapper, identity, idx, apinfo), subPat, mCase)
+    let mkQuery idx subPat mCase =
+        TPat_query((apExpr, resTys, ActivePatternReturnKind.RefTypeWrapper, identity, idx, apinfo), subPat, mCase)
+
+    let mkRestCase =
+        if rest.IsEmpty then
+            None
+        else
+            Some(mkPolyVariantTotalPattern g m variantTy rest)
+
+    fun (tag: string) subPat mCase ->
+        match List.tryFindIndex (fun (directTag, _) -> directTag = tag) direct, mkRestCase with
+        | Some idx, _ -> mkQuery idx subPat mCase
+        | None, Some mkRestCase -> mkQuery (n - 1) (mkRestCase tag subPat mCase) mCase
+        | None, None -> failwith "mkPolyVariantTotalPattern: tag not in the closed row"
 
 /// Decide, for each position a match tests polymorphic variant tags at, whether the scrutinee's tags are open or closed there.
 /// Constrain the scrutinee types accordingly and fuse the tag patterns at closed positions.
@@ -837,9 +860,7 @@ let CheckPolyVariantMatchClauses (cenv: TcFileState) (env: TcEnv) (clauses: Matc
             else
                 AddCxTypeIsPolymorphicVariantClosed env.DisplayEnv cenv.css first.Range NoTrace first.VariantTy (List.map fst tagsAndTys)
 
-                if tagsAndTys.Length <= maxClosedPolyVariantTags then
-                    let mkCase = mkPolyVariantTotalPattern g first.Range first.VariantTy tagsAndTys
-                    closed <- closed.Add(path, (List.map fst tagsAndTys, mkCase))
+                closed <- closed.Add(path, mkPolyVariantTotalPattern g first.Range first.VariantTy tagsAndTys)
 
         if closed.IsEmpty then
             clauses

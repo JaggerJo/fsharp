@@ -1070,6 +1070,7 @@ module internal TypeTesters =
             || isReprHiddenTy g ty
             || isFSharpObjModelRefTy g ty
             || isUnitTy g ty
+            || isPolyVariantTy g ty
             || (isAnonRecdTy g ty && not (isStructAnonRecdTy g ty)))
 
     let isForallFunctionTy g ty =

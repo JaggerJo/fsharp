@@ -1655,10 +1655,17 @@ and SolveTypeSubsumesType (csenv: ConstraintSolverEnv) ndeep m2 (trace: Optional
                 do! SolveAnonInfoEqualsAnonInfo csenv m2 anonInfo1 anonInfo2
                 do! SolveTypeEqualsTypeEqns csenv ndeep m2 trace cxsln l1 l2
             }
+        // An exact variant type is a subtype of any exact variant type with more tags, the shared tags carrying the same payloads
         | TType_variant (tags1, l1), TType_variant (tags2, l2) ->
             trackErrors {
-                do! SolvePolyVariantTagsEqual csenv m2 sty1 sty2 tags1 tags2
-                do! SolveTypeEqualsTypeEqns csenv ndeep m2 trace cxsln l1 l2
+                let payloadsByTag1 = List.zip tags1 l1
+
+                for tag2, payloadTy2 in List.zip tags2 l2 do
+                    match List.tryFind (fun (tag1, _) -> tag1 = tag2) payloadsByTag1 with
+                    | Some (_, payloadTy1) -> do! SolveTypeEqualsTypeKeepAbbrevsWithCxsln csenv ndeep m2 trace cxsln payloadTy1 payloadTy2
+                    | None ->
+                        let tyText = NicePrint.minimalStringOfType denv sty1
+                        do! ErrorD (ConstraintSolverError(FSComp.SR.csPolymorphicVariantTagNotInType(RichText.mkText tyText, RichText.mkText ("`" + tag2)), csenv.m, m2))
             }
         | TType_measure ms1, TType_measure ms2 ->
             UnifyMeasures csenv trace ms1 ms2
