@@ -656,7 +656,8 @@ module ParsedInput =
             | SynTypeConstraint.WhereTyparNotSupportsNull(genericName = t) -> walkTypar t
             | SynTypeConstraint.WhereTyparIsComparable(t, _) -> walkTypar t
             | SynTypeConstraint.WhereTyparIsEquatable(t, _) -> walkTypar t
-            | SynTypeConstraint.WhereTyparSubtypeOfType(t, ty, _) -> walkTypar t |> Option.orElseWith (fun () -> walkType ty)
+            | SynTypeConstraint.WhereTyparSubtypeOfType(t, ty, _)
+            | SynTypeConstraint.WhereTyparIsPolymorphicVariant(t, ty, _) -> walkTypar t |> Option.orElseWith (fun () -> walkType ty)
             | SynTypeConstraint.WhereTyparSupportsMember(TypesForTypar ts, sign, _) ->
                 List.tryPick walkType ts |> Option.orElseWith (fun () -> walkMemberSig sign)
             | SynTypeConstraint.WhereTyparIsEnum(t, ts, _) -> walkTypar t |> Option.orElseWith (fun () -> List.tryPick walkType ts)
@@ -726,6 +727,7 @@ module ParsedInput =
             | SynType.StaticConstantExpr(e, _) -> walkExpr e
             | SynType.StaticConstantNamed(ident, value, _) -> List.tryPick walkType [ ident; value ]
             | SynType.Intersection(types = types) -> List.tryPick walkType types
+            | SynType.PolymorphicVariant(elements = elements) -> synPolyVariantElementTypes elements |> List.tryPick walkType
             | SynType.StaticConstantNull _
             | SynType.Anon _
             | SynType.AnonRecd _
@@ -1987,7 +1989,8 @@ module ParsedInput =
             | SynTypeConstraint.WhereTyparIsComparable(t, _)
             | SynTypeConstraint.WhereTyparIsEquatable(t, _) -> walkTypar t
             | SynTypeConstraint.WhereTyparDefaultsToType(t, ty, _)
-            | SynTypeConstraint.WhereTyparSubtypeOfType(t, ty, _) ->
+            | SynTypeConstraint.WhereTyparSubtypeOfType(t, ty, _)
+            | SynTypeConstraint.WhereTyparIsPolymorphicVariant(t, ty, _) ->
                 walkTypar t
                 walkType ty
             | SynTypeConstraint.WhereTyparIsEnum(t, ts, _)
@@ -2066,6 +2069,7 @@ module ParsedInput =
                 walkType ident
                 walkType value
             | SynType.Intersection(types = types) -> List.iter walkType types
+            | SynType.PolymorphicVariant(elements = elements) -> synPolyVariantElementTypes elements |> List.iter walkType
             | SynType.StaticConstantNull _
             | SynType.Anon _
             | SynType.AnonRecd _

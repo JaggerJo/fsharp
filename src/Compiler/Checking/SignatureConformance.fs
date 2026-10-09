@@ -279,6 +279,7 @@ type Checker(g, amap, denv, remapInfo: SignatureRepackageInfo, checkingSig) =
                       match implTyparCx with
                       // defaults can be dropped in the signature
                       | TyparConstraint.DefaultsTo(_, _acty, _) -> true
+                      | PolyVariantConstraint -> true
                       | _ ->
                           if not (List.exists  (typarConstraintsAEquiv g aenv implTyparCx) sigTypar.Constraints)
                           then (errorR(Error(FSComp.SR.typrelSigImplNotCompatibleConstraintsDiffer(RichText.mkTypeParameter sigTypar.Name, LayoutRender.toRichText (NicePrint.layoutTyparConstraint denv (implTypar, implTyparCx))), m)); false)
@@ -292,12 +293,47 @@ type Checker(g, amap, denv, remapInfo: SignatureRepackageInfo, checkingSig) =
                       // 'comparison' and 'equality' constraints can be present in the signature and not in the implementation  because they are erased
                       | TyparConstraint.SupportsComparison _ -> true
                       | TyparConstraint.SupportsEquality _ -> true
+                      | PolyVariantConstraint -> true
                       | _ ->
                           if not (List.exists  (fun implTyparCx -> typarConstraintsAEquiv g aenv implTyparCx sigTyparCx) implTypar.Constraints) then
                               (errorR(Error(FSComp.SR.typrelSigImplNotCompatibleConstraintsDifferRemove(RichText.mkTypeParameter sigTypar.Name, LayoutRender.toRichText (NicePrint.layoutTyparConstraint denv (sigTypar, sigTyparCx))), m)); false)
                           else
                               true) &&
+                  checkPolyVariantRows m aenv implTypar sigTypar &&
                   (not checkingSig || checkAttribs aenv implTypar.Attribs sigTypar.Attribs implTypar.SetAttribs))
+
+        /// Polymorphic variant rows are erased, so a signature may give a stricter row than the implementation:
+        /// fewer allowed tags, more required tags, and the same payload type for every tag it allows.
+        and checkPolyVariantRows m aenv (implTypar: Typar) (sigTypar: Typar) =
+            match tryGetPolyVariantRow implTypar, tryGetPolyVariantRow sigTypar with
+            | ValueNone, _ -> true
+            | ValueSome implRow, sigRowOpt ->
+                let sigRow = sigRowOpt |> ValueOption.defaultValue { Required = []; Closed = ValueNone; Payloads = [] }
+
+                let sigAllows tag =
+                    match sigRow.Closed with
+                    | ValueSome closed -> List.contains tag closed
+                    | ValueNone -> true
+
+                let closedOk =
+                    match implRow.Closed, sigRow.Closed with
+                    | ValueSome implClosed, ValueSome sigClosed -> sigClosed |> List.forall (fun tag -> List.contains tag implClosed)
+                    | ValueSome _, ValueNone -> false
+                    | ValueNone, _ -> true
+
+                let requiredOk = implRow.Required |> List.forall (fun tag -> List.contains tag sigRow.Required)
+
+                let payloadsOk =
+                    implRow.Payloads |> List.forall (fun (tag, implPayloadTy) ->
+                        not (sigAllows tag)
+                        || sigRow.Payloads |> List.exists (fun (sigTag, sigPayloadTy) -> sigTag = tag && typeAEquiv g aenv implPayloadTy sigPayloadTy))
+
+                if closedOk && requiredOk && payloadsOk then
+                    true
+                else
+                    let implCx = implTypar.Constraints |> List.find (function PolyVariantConstraint -> true | _ -> false)
+                    errorR(Error(FSComp.SR.typrelSigImplNotCompatibleConstraintsDiffer(RichText.mkTypeParameter sigTypar.Name, LayoutRender.toRichText (NicePrint.layoutTyparConstraint denv (implTypar, implCx))), m))
+                    false
 
         and checkTypeDef (aenv: TypeEquivEnv) (infoReader: InfoReader) (implTycon: Tycon) (sigTycon: Tycon) =
             let m = implTycon.Range

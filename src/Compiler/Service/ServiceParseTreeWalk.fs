@@ -864,6 +864,8 @@ module SyntaxTraversal =
                 | SynType.Paren(innerType = t)
                 | SynType.SignatureParameter(usedType = t) -> traverseSynType path t
                 | SynType.Intersection(types = types) -> List.tryPick (traverseSynType path) types
+                | SynType.PolymorphicVariant(elements = elements) ->
+                    synPolyVariantElementTypes elements |> List.tryPick (traverseSynType path)
                 | SynType.StaticConstantNull _
                 | SynType.Anon _
                 | SynType.AnonRecd _

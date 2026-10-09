@@ -397,3 +397,6 @@ val getGetterSetterAccess: SynValSigAccess -> SynMemberKind -> LanguageVersion -
 
 /// Adds SynPat.Or pattern for unfinished empty clause above
 val addEmptyMatchClause: mBar1: range -> mBar2: range -> clauses: SynMatchClause list -> SynMatchClause list
+
+/// The payload types and included types of the elements of a polymorphic variant type
+val synPolyVariantElementTypes: elements: SynPolymorphicVariantElement list -> SynType list

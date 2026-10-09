@@ -1342,6 +1342,13 @@ module internal TypeDecomposition =
             Payloads: (string * TType) list
         }
 
+    [<return: Struct>]
+    let (|PolyVariantConstraint|_|) (cx: TyparConstraint) =
+        match cx with
+        | TyparConstraint.HasPolymorphicVariantTag _
+        | TyparConstraint.IsPolymorphicVariantClosed _ -> ValueSome()
+        | _ -> ValueNone
+
     let tryGetPolyVariantRow (tp: Typar) =
         let mutable isVariant = false
         let mutable required = []

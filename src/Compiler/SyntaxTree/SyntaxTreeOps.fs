@@ -1295,3 +1295,9 @@ let addEmptyMatchClause (mBar1: range) (mBar2: range) (clauses: SynMatchClause l
     | SynMatchClause(pat, whenExpr, resultExpr, range, debugPoint, trivia) :: restClauses ->
         SynMatchClause(addOrPat pat, whenExpr, resultExpr, range, debugPoint, trivia)
         :: restClauses
+
+let synPolyVariantElementTypes (elements: SynPolymorphicVariantElement list) =
+    elements
+    |> List.choose (function
+        | SynPolymorphicVariantElement.Tag(payloadType = ty) -> ty
+        | SynPolymorphicVariantElement.Include(variantType = ty) -> Some ty)

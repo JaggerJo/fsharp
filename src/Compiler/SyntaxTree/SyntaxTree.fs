@@ -374,6 +374,8 @@ type SynTypeConstraint =
 
     | WhereSelfConstrained of selfConstraint: SynType * range: range
 
+    | WhereTyparIsPolymorphicVariant of typar: SynTypar * variantType: SynType * range: range
+
     member x.Range =
         match x with
         | WhereTyparIsValueType(range = range)
@@ -388,7 +390,8 @@ type SynTypeConstraint =
         | WhereTyparSupportsMember(range = range)
         | WhereTyparIsEnum(range = range)
         | WhereTyparIsDelegate(range = range) -> range
-        | WhereSelfConstrained(range = range) -> range
+        | WhereSelfConstrained(range = range)
+        | WhereTyparIsPolymorphicVariant(range = range) -> range
 
 [<RequireQualifiedAccess>]
 type SynTyparDecls =
@@ -439,6 +442,22 @@ type SynTupleTypeSegment =
         | SynTupleTypeSegment.Type t -> t.Range
         | SynTupleTypeSegment.Star(range = range)
         | SynTupleTypeSegment.Slash(range = range) -> range
+
+[<RequireQualifiedAccess>]
+type SynPolymorphicVariantBound =
+    | Exact
+    | AtLeast
+    | AtMost
+
+[<NoEquality; NoComparison; RequireQualifiedAccess>]
+type SynPolymorphicVariantElement =
+    | Tag of tag: Ident * payloadType: SynType option * range: range
+    | Include of variantType: SynType * range: range
+
+    member x.Range =
+        match x with
+        | Tag(range = m)
+        | Include(range = m) -> m
 
 [<NoEquality; NoComparison; RequireQualifiedAccess>]
 type SynType =
@@ -501,6 +520,12 @@ type SynType =
 
     | Intersection of typar: SynTypar option * types: SynType list * range: range * trivia: SynTyparDeclTrivia
 
+    | PolymorphicVariant of
+        bound: SynPolymorphicVariantBound *
+        elements: SynPolymorphicVariantElement list *
+        requiredTags: Ident list *
+        range: range
+
     member x.Range =
         match x with
         | SynType.App(range = m)
@@ -523,6 +548,7 @@ type SynType =
         | SynType.SignatureParameter(range = m)
         | SynType.Or(range = m)
         | SynType.Intersection(range = m)
+        | SynType.PolymorphicVariant(range = m)
         | SynType.FromParseError(range = m) -> m
         | SynType.LongIdent lidwd -> lidwd.Range
 
@@ -1023,6 +1049,8 @@ type SynPat =
 
     | PolymorphicVariant of tag: Ident * argPat: SynPat option * range: range
 
+    | PolymorphicVariantType of variantType: SynType * range: range
+
     | OptionalVal of ident: Ident * range: range
 
     | IsInst of pat: SynType * range: range
@@ -1055,6 +1083,7 @@ type SynPat =
         | SynPat.Record(range = m)
         | SynPat.Null(range = m)
         | SynPat.PolymorphicVariant(range = m)
+        | SynPat.PolymorphicVariantType(range = m)
         | SynPat.IsInst(range = m)
         | SynPat.QuoteExpr(range = m)
         | SynPat.InstanceMember(range = m)

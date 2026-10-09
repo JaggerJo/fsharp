@@ -4229,6 +4229,16 @@ let rec TcTyparConstraint ridx (cenv: cenv) newOk checkConstraints occ (env: TcE
     | SynTypeConstraint.WhereTyparSupportsNull(tp, m) ->
         TcSimpleTyparConstraint cenv env newOk tpenv tp m AddCxTypeUseSupportsNull
 
+    | SynTypeConstraint.WhereTyparIsPolymorphicVariant(tp, SynType.PolymorphicVariant (bound, elements, requiredTags, _), m) ->
+        checkLanguageFeatureAndRecover g.langVersion LanguageFeature.PolymorphicVariants m
+        let tagsAndTys, tpenv = TcPolyVariantElements cenv env newOk checkConstraints occ tpenv elements
+        let tpR, tpenv = TcTypar cenv env newOk tpenv tp
+        AddPolyVariantRowConstraints cenv env m (mkTyparTy tpR) bound tagsAndTys requiredTags
+        tpenv
+
+    | SynTypeConstraint.WhereTyparIsPolymorphicVariant(_, _, m) ->
+        error (InternalError ("a polymorphic variant constraint without a polymorphic variant type", m))
+
     | SynTypeConstraint.WhereTyparNotSupportsNull(tp, m, _) ->
         if g.langFeatureNullness then
             TcSimpleTyparConstraint cenv env newOk tpenv tp m AddCxTypeDefnNotSupportsNull
@@ -4660,6 +4670,9 @@ and TcTypeOrMeasure kindOpt (cenv: cenv) newOk checkConstraints occ (iwsam: Warn
     | SynType.Intersection (tp, tys, m, _) ->
         TcIntersectionConstraint cenv env newOk checkConstraints occ tpenv tp tys m
 
+    | SynType.PolymorphicVariant (bound, elements, requiredTags, m) ->
+        TcPolyVariantType cenv env newOk checkConstraints occ tpenv bound elements requiredTags m
+
     | SynType.StaticConstant (synConst, m) ->
         TcTypeStaticConstant kindOpt tpenv synConst m
 
@@ -4854,6 +4867,75 @@ and TcTypeHashConstraint (cenv: cenv) env newOk checkConstraints occ tpenv synTy
     let tpTy = mkTyparTy tp
     AddCxTypeMustSubsumeType ContextInfo.NoContext env.DisplayEnv cenv.css m NoTrace ty tpTy
     tpTy, tpenv
+
+/// The tags and payload types a polymorphic variant type written in source lists, with included types expanded
+and TcPolyVariantElements (cenv: cenv) env newOk checkConstraints occ tpenv (elements: SynPolymorphicVariantElement list) =
+    let g = cenv.g
+
+    let tagsAndTys, tpenv =
+        (tpenv, elements) ||> List.collectFold (fun tpenv element ->
+            match element with
+            | SynPolymorphicVariantElement.Tag (tag, synPayloadTyOpt, _) ->
+                match synPayloadTyOpt with
+                | Some synPayloadTy ->
+                    let payloadTy, tpenv = TcTypeAndRecover cenv newOk checkConstraints occ WarnOnIWSAM.Yes env tpenv synPayloadTy
+                    [ tag.idText, (payloadTy, tag.idRange) ], tpenv
+                | None -> [ tag.idText, (g.unit_ty, tag.idRange) ], tpenv
+            | SynPolymorphicVariantElement.Include (synTy, m) ->
+                let ty, tpenv = TcTypeAndRecover cenv newOk checkConstraints occ WarnOnIWSAM.Yes env tpenv synTy
+                match tryDestPolyVariantTy g ty with
+                | ValueSome (struct (tags, tys)) -> List.map2 (fun tag ty -> tag, (ty, m)) tags tys, tpenv
+                | ValueNone ->
+                    errorR (Error (FSComp.SR.tcPolymorphicVariantIncludeNotExact (NicePrint.minimalStringOfType env.DisplayEnv ty), m))
+                    [], tpenv)
+
+    // A tag listed twice, directly or through an included type, carries one payload type
+    let distinct =
+        (tagsAndTys, []) ||> List.foldBack (fun (tag, (ty, m)) acc ->
+            match List.tryFind (fun (tag2, _) -> tag2 = tag) acc with
+            | Some (_, ty2) ->
+                UnifyTypes cenv env m ty2 ty
+                acc
+            | None -> (tag, ty) :: acc)
+
+    distinct, tpenv
+
+/// Constrain a type to the row written as a polymorphic variant type: [> ... ], [< ... ] or [< ... > ... ]
+and AddPolyVariantRowConstraints (cenv: cenv) env m ty bound (tagsAndTys: (string * TType) list) (requiredTags: Ident list) =
+    let tags = List.map fst tagsAndTys
+
+    for tag in requiredTags do
+        if not (List.contains tag.idText tags) then
+            errorR (Error (FSComp.SR.tcPolymorphicVariantRequiredTagNotListed ("`" + tag.idText), tag.idRange))
+
+    let isRequired tag =
+        match bound with
+        | SynPolymorphicVariantBound.AtLeast
+        | SynPolymorphicVariantBound.Exact -> true
+        | SynPolymorphicVariantBound.AtMost -> requiredTags |> List.exists (fun required -> required.idText = tag)
+
+    for tag, payloadTy in tagsAndTys do
+        AddCxTypeHasPolymorphicVariantTag env.DisplayEnv cenv.css m NoTrace ty tag payloadTy (isRequired tag)
+
+    match bound with
+    | SynPolymorphicVariantBound.AtMost
+    | SynPolymorphicVariantBound.Exact -> AddCxTypeIsPolymorphicVariantClosed env.DisplayEnv cenv.css m NoTrace ty tags
+    | SynPolymorphicVariantBound.AtLeast -> ()
+
+// [ `A of int | `B ], [> `A ], [< `A | `B ], [< `A | `B > `A ]
+and TcPolyVariantType (cenv: cenv) env newOk checkConstraints occ tpenv bound elements requiredTags m =
+    checkLanguageFeatureAndRecover cenv.g.langVersion LanguageFeature.PolymorphicVariants m
+    let tagsAndTys, tpenv = TcPolyVariantElements cenv env newOk checkConstraints occ tpenv elements
+
+    match bound with
+    | SynPolymorphicVariantBound.Exact -> mkPolyVariantTy tagsAndTys, tpenv
+    | SynPolymorphicVariantBound.AtLeast
+    | SynPolymorphicVariantBound.AtMost ->
+        // Like #seq, a bounded variant type stands for a fresh type parameter carrying the bounds
+        let tp = TcAnonTypeOrMeasure (Some TyparKind.Type) cenv TyparRigidity.WarnIfNotRigid TyparDynamicReq.Yes newOk m
+        let tpTy = mkTyparTy tp
+        AddPolyVariantRowConstraints cenv env m tpTy bound tagsAndTys requiredTags
+        tpTy, tpenv
 
 // (x: 't & #I1 & #I2)
 // (x: #I1 & #I2)

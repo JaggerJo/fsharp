@@ -9106,6 +9106,10 @@ FSharp.Compiler.Syntax.SynPat+PolymorphicVariant: FSharp.Compiler.Text.Range get
 FSharp.Compiler.Syntax.SynPat+PolymorphicVariant: FSharp.Compiler.Text.Range range
 FSharp.Compiler.Syntax.SynPat+PolymorphicVariant: Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynPat] argPat
 FSharp.Compiler.Syntax.SynPat+PolymorphicVariant: Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynPat] get_argPat()
+FSharp.Compiler.Syntax.SynPat+PolymorphicVariantType: FSharp.Compiler.Syntax.SynType get_variantType()
+FSharp.Compiler.Syntax.SynPat+PolymorphicVariantType: FSharp.Compiler.Syntax.SynType variantType
+FSharp.Compiler.Syntax.SynPat+PolymorphicVariantType: FSharp.Compiler.Text.Range get_range()
+FSharp.Compiler.Syntax.SynPat+PolymorphicVariantType: FSharp.Compiler.Text.Range range
 FSharp.Compiler.Syntax.SynPat+QuoteExpr: FSharp.Compiler.Syntax.SynExpr expr
 FSharp.Compiler.Syntax.SynPat+QuoteExpr: FSharp.Compiler.Syntax.SynExpr get_expr()
 FSharp.Compiler.Syntax.SynPat+QuoteExpr: FSharp.Compiler.Text.Range get_range()
@@ -9130,6 +9134,7 @@ FSharp.Compiler.Syntax.SynPat+Tags: Int32 OptionalVal
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 Or
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 Paren
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 PolymorphicVariant
+FSharp.Compiler.Syntax.SynPat+Tags: Int32 PolymorphicVariantType
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 QuoteExpr
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 Record
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 Tuple
@@ -9167,6 +9172,7 @@ FSharp.Compiler.Syntax.SynPat: Boolean IsOptionalVal
 FSharp.Compiler.Syntax.SynPat: Boolean IsOr
 FSharp.Compiler.Syntax.SynPat: Boolean IsParen
 FSharp.Compiler.Syntax.SynPat: Boolean IsPolymorphicVariant
+FSharp.Compiler.Syntax.SynPat: Boolean IsPolymorphicVariantType
 FSharp.Compiler.Syntax.SynPat: Boolean IsQuoteExpr
 FSharp.Compiler.Syntax.SynPat: Boolean IsRecord
 FSharp.Compiler.Syntax.SynPat: Boolean IsTuple
@@ -9188,6 +9194,7 @@ FSharp.Compiler.Syntax.SynPat: Boolean get_IsOptionalVal()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsOr()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsParen()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsPolymorphicVariant()
+FSharp.Compiler.Syntax.SynPat: Boolean get_IsPolymorphicVariantType()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsQuoteExpr()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsRecord()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsTuple()
@@ -9209,6 +9216,7 @@ FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewOptionalVal(FSha
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewOr(FSharp.Compiler.Syntax.SynPat, FSharp.Compiler.Syntax.SynPat, FSharp.Compiler.Text.Range, FSharp.Compiler.SyntaxTrivia.SynPatOrTrivia)
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewParen(FSharp.Compiler.Syntax.SynPat, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewPolymorphicVariant(FSharp.Compiler.Syntax.Ident, Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynPat], FSharp.Compiler.Text.Range)
+FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewPolymorphicVariantType(FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewQuoteExpr(FSharp.Compiler.Syntax.SynExpr, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewRecord(Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.NamePatPairField], FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewTuple(Boolean, Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynPat], Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Text.Range], FSharp.Compiler.Text.Range)
@@ -9230,6 +9238,7 @@ FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+OptionalVal
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+Or
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+Paren
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+PolymorphicVariant
+FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+PolymorphicVariantType
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+QuoteExpr
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+Record
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+Tags
@@ -9242,6 +9251,60 @@ FSharp.Compiler.Syntax.SynPat: Int32 Tag
 FSharp.Compiler.Syntax.SynPat: Int32 get_Tag()
 FSharp.Compiler.Syntax.SynPat: System.String ToString()
 FSharp.Compiler.Syntax.SynPatModule: Boolean shouldBeParenthesizedInContext(Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SyntaxNode], FSharp.Compiler.Syntax.SynPat)
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound+Tags: Int32 AtLeast
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound+Tags: Int32 AtMost
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound+Tags: Int32 Exact
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Boolean Equals(FSharp.Compiler.Syntax.SynPolymorphicVariantBound)
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Boolean Equals(FSharp.Compiler.Syntax.SynPolymorphicVariantBound, System.Collections.IEqualityComparer)
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Boolean Equals(System.Object)
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Boolean IsAtLeast
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Boolean IsAtMost
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Boolean IsExact
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Boolean get_IsAtLeast()
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Boolean get_IsAtMost()
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Boolean get_IsExact()
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: FSharp.Compiler.Syntax.SynPolymorphicVariantBound AtLeast
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: FSharp.Compiler.Syntax.SynPolymorphicVariantBound AtMost
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: FSharp.Compiler.Syntax.SynPolymorphicVariantBound Exact
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: FSharp.Compiler.Syntax.SynPolymorphicVariantBound get_AtLeast()
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: FSharp.Compiler.Syntax.SynPolymorphicVariantBound get_AtMost()
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: FSharp.Compiler.Syntax.SynPolymorphicVariantBound get_Exact()
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: FSharp.Compiler.Syntax.SynPolymorphicVariantBound+Tags
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Int32 CompareTo(FSharp.Compiler.Syntax.SynPolymorphicVariantBound)
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Int32 CompareTo(System.Object)
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Int32 CompareTo(System.Object, System.Collections.IComparer)
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Int32 GetHashCode()
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Int32 GetHashCode(System.Collections.IEqualityComparer)
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Int32 Tag
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: Int32 get_Tag()
+FSharp.Compiler.Syntax.SynPolymorphicVariantBound: System.String ToString()
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Include: FSharp.Compiler.Syntax.SynType get_variantType()
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Include: FSharp.Compiler.Syntax.SynType variantType
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Include: FSharp.Compiler.Text.Range get_range()
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Include: FSharp.Compiler.Text.Range range
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Tag: FSharp.Compiler.Syntax.Ident get_tag()
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Tag: FSharp.Compiler.Syntax.Ident tag
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Tag: FSharp.Compiler.Text.Range get_range()
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Tag: FSharp.Compiler.Text.Range range
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Tag: Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynType] get_payloadType()
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Tag: Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynType] payloadType
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Tags: Int32 Include
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Tags: Int32 Tag
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: Boolean IsInclude
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: Boolean IsTag
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: Boolean get_IsInclude()
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: Boolean get_IsTag()
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: FSharp.Compiler.Syntax.SynPolymorphicVariantElement NewInclude(FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Text.Range)
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: FSharp.Compiler.Syntax.SynPolymorphicVariantElement NewTag(FSharp.Compiler.Syntax.Ident, Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynType], FSharp.Compiler.Text.Range)
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Include
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Tag
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: FSharp.Compiler.Syntax.SynPolymorphicVariantElement+Tags
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: FSharp.Compiler.Text.Range Range
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: FSharp.Compiler.Text.Range get_Range()
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: Int32 Tag
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: Int32 get_Tag()
+FSharp.Compiler.Syntax.SynPolymorphicVariantElement: System.String ToString()
 FSharp.Compiler.Syntax.SynRationalConst+Integer: FSharp.Compiler.Text.Range get_range()
 FSharp.Compiler.Syntax.SynRationalConst+Integer: FSharp.Compiler.Text.Range range
 FSharp.Compiler.Syntax.SynRationalConst+Integer: Int32 get_value()
@@ -9601,6 +9664,14 @@ FSharp.Compiler.Syntax.SynType+Paren: FSharp.Compiler.Syntax.SynType get_innerTy
 FSharp.Compiler.Syntax.SynType+Paren: FSharp.Compiler.Syntax.SynType innerType
 FSharp.Compiler.Syntax.SynType+Paren: FSharp.Compiler.Text.Range get_range()
 FSharp.Compiler.Syntax.SynType+Paren: FSharp.Compiler.Text.Range range
+FSharp.Compiler.Syntax.SynType+PolymorphicVariant: FSharp.Compiler.Syntax.SynPolymorphicVariantBound bound
+FSharp.Compiler.Syntax.SynType+PolymorphicVariant: FSharp.Compiler.Syntax.SynPolymorphicVariantBound get_bound()
+FSharp.Compiler.Syntax.SynType+PolymorphicVariant: FSharp.Compiler.Text.Range get_range()
+FSharp.Compiler.Syntax.SynType+PolymorphicVariant: FSharp.Compiler.Text.Range range
+FSharp.Compiler.Syntax.SynType+PolymorphicVariant: Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.Ident] get_requiredTags()
+FSharp.Compiler.Syntax.SynType+PolymorphicVariant: Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.Ident] requiredTags
+FSharp.Compiler.Syntax.SynType+PolymorphicVariant: Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynPolymorphicVariantElement] elements
+FSharp.Compiler.Syntax.SynType+PolymorphicVariant: Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynPolymorphicVariantElement] get_elements()
 FSharp.Compiler.Syntax.SynType+SignatureParameter: Boolean get_optional()
 FSharp.Compiler.Syntax.SynType+SignatureParameter: Boolean optional
 FSharp.Compiler.Syntax.SynType+SignatureParameter: FSharp.Compiler.Syntax.SynType get_usedType()
@@ -9640,6 +9711,7 @@ FSharp.Compiler.Syntax.SynType+Tags: Int32 LongIdentApp
 FSharp.Compiler.Syntax.SynType+Tags: Int32 MeasurePower
 FSharp.Compiler.Syntax.SynType+Tags: Int32 Or
 FSharp.Compiler.Syntax.SynType+Tags: Int32 Paren
+FSharp.Compiler.Syntax.SynType+Tags: Int32 PolymorphicVariant
 FSharp.Compiler.Syntax.SynType+Tags: Int32 SignatureParameter
 FSharp.Compiler.Syntax.SynType+Tags: Int32 StaticConstant
 FSharp.Compiler.Syntax.SynType+Tags: Int32 StaticConstantExpr
@@ -9686,6 +9758,7 @@ FSharp.Compiler.Syntax.SynType: Boolean IsLongIdentApp
 FSharp.Compiler.Syntax.SynType: Boolean IsMeasurePower
 FSharp.Compiler.Syntax.SynType: Boolean IsOr
 FSharp.Compiler.Syntax.SynType: Boolean IsParen
+FSharp.Compiler.Syntax.SynType: Boolean IsPolymorphicVariant
 FSharp.Compiler.Syntax.SynType: Boolean IsSignatureParameter
 FSharp.Compiler.Syntax.SynType: Boolean IsStaticConstant
 FSharp.Compiler.Syntax.SynType: Boolean IsStaticConstantExpr
@@ -9708,6 +9781,7 @@ FSharp.Compiler.Syntax.SynType: Boolean get_IsLongIdentApp()
 FSharp.Compiler.Syntax.SynType: Boolean get_IsMeasurePower()
 FSharp.Compiler.Syntax.SynType: Boolean get_IsOr()
 FSharp.Compiler.Syntax.SynType: Boolean get_IsParen()
+FSharp.Compiler.Syntax.SynType: Boolean get_IsPolymorphicVariant()
 FSharp.Compiler.Syntax.SynType: Boolean get_IsSignatureParameter()
 FSharp.Compiler.Syntax.SynType: Boolean get_IsStaticConstant()
 FSharp.Compiler.Syntax.SynType: Boolean get_IsStaticConstantExpr()
@@ -9730,6 +9804,7 @@ FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewLongIdentApp(F
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewMeasurePower(FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Syntax.SynRationalConst, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewOr(FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Text.Range, FSharp.Compiler.SyntaxTrivia.SynTypeOrTrivia)
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewParen(FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Text.Range)
+FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewPolymorphicVariant(FSharp.Compiler.Syntax.SynPolymorphicVariantBound, Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynPolymorphicVariantElement], Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.Ident], FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewSignatureParameter(Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynAttributeList], Boolean, Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.Ident], FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewStaticConstant(FSharp.Compiler.Syntax.SynConst, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewStaticConstantExpr(FSharp.Compiler.Syntax.SynExpr, FSharp.Compiler.Text.Range)
@@ -9752,6 +9827,7 @@ FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType+LongIdentApp
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType+MeasurePower
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType+Or
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType+Paren
+FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType+PolymorphicVariant
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType+SignatureParameter
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType+StaticConstant
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType+StaticConstantExpr
@@ -9773,6 +9849,7 @@ FSharp.Compiler.Syntax.SynTypeConstraint+Tags: Int32 WhereTyparIsComparable
 FSharp.Compiler.Syntax.SynTypeConstraint+Tags: Int32 WhereTyparIsDelegate
 FSharp.Compiler.Syntax.SynTypeConstraint+Tags: Int32 WhereTyparIsEnum
 FSharp.Compiler.Syntax.SynTypeConstraint+Tags: Int32 WhereTyparIsEquatable
+FSharp.Compiler.Syntax.SynTypeConstraint+Tags: Int32 WhereTyparIsPolymorphicVariant
 FSharp.Compiler.Syntax.SynTypeConstraint+Tags: Int32 WhereTyparIsReferenceType
 FSharp.Compiler.Syntax.SynTypeConstraint+Tags: Int32 WhereTyparIsUnmanaged
 FSharp.Compiler.Syntax.SynTypeConstraint+Tags: Int32 WhereTyparIsValueType
@@ -9810,6 +9887,12 @@ FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsEquatable: FSharp.Compiler.
 FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsEquatable: FSharp.Compiler.Syntax.SynTypar typar
 FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsEquatable: FSharp.Compiler.Text.Range get_range()
 FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsEquatable: FSharp.Compiler.Text.Range range
+FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsPolymorphicVariant: FSharp.Compiler.Syntax.SynTypar get_typar()
+FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsPolymorphicVariant: FSharp.Compiler.Syntax.SynTypar typar
+FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsPolymorphicVariant: FSharp.Compiler.Syntax.SynType get_variantType()
+FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsPolymorphicVariant: FSharp.Compiler.Syntax.SynType variantType
+FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsPolymorphicVariant: FSharp.Compiler.Text.Range get_range()
+FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsPolymorphicVariant: FSharp.Compiler.Text.Range range
 FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsReferenceType: FSharp.Compiler.Syntax.SynTypar get_typar()
 FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsReferenceType: FSharp.Compiler.Syntax.SynTypar typar
 FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsReferenceType: FSharp.Compiler.Text.Range get_range()
@@ -9850,6 +9933,7 @@ FSharp.Compiler.Syntax.SynTypeConstraint: Boolean IsWhereTyparIsComparable
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean IsWhereTyparIsDelegate
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean IsWhereTyparIsEnum
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean IsWhereTyparIsEquatable
+FSharp.Compiler.Syntax.SynTypeConstraint: Boolean IsWhereTyparIsPolymorphicVariant
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean IsWhereTyparIsReferenceType
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean IsWhereTyparIsUnmanaged
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean IsWhereTyparIsValueType
@@ -9863,6 +9947,7 @@ FSharp.Compiler.Syntax.SynTypeConstraint: Boolean get_IsWhereTyparIsComparable()
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean get_IsWhereTyparIsDelegate()
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean get_IsWhereTyparIsEnum()
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean get_IsWhereTyparIsEquatable()
+FSharp.Compiler.Syntax.SynTypeConstraint: Boolean get_IsWhereTyparIsPolymorphicVariant()
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean get_IsWhereTyparIsReferenceType()
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean get_IsWhereTyparIsUnmanaged()
 FSharp.Compiler.Syntax.SynTypeConstraint: Boolean get_IsWhereTyparIsValueType()
@@ -9876,6 +9961,7 @@ FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstrai
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint NewWhereTyparIsDelegate(FSharp.Compiler.Syntax.SynTypar, Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynType], FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint NewWhereTyparIsEnum(FSharp.Compiler.Syntax.SynTypar, Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynType], FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint NewWhereTyparIsEquatable(FSharp.Compiler.Syntax.SynTypar, FSharp.Compiler.Text.Range)
+FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint NewWhereTyparIsPolymorphicVariant(FSharp.Compiler.Syntax.SynTypar, FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint NewWhereTyparIsReferenceType(FSharp.Compiler.Syntax.SynTypar, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint NewWhereTyparIsUnmanaged(FSharp.Compiler.Syntax.SynTypar, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint NewWhereTyparIsValueType(FSharp.Compiler.Syntax.SynTypar, FSharp.Compiler.Text.Range)
@@ -9890,6 +9976,7 @@ FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstrai
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsDelegate
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsEnum
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsEquatable
+FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsPolymorphicVariant
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsReferenceType
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsUnmanaged
 FSharp.Compiler.Syntax.SynTypeConstraint: FSharp.Compiler.Syntax.SynTypeConstraint+WhereTyparIsValueType

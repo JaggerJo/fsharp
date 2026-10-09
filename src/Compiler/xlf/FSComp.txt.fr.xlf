@@ -1637,6 +1637,16 @@
         <target state="new">A polymorphic variant tag takes at most one argument. Use a tuple to carry several values, e.g. '{0} (a, b)'.</target>
         <note />
       </trans-unit>
+      <trans-unit id="tcPolymorphicVariantIncludeNotExact">
+        <source>The type '{0}' cannot be included in a polymorphic variant type: only exact polymorphic variant types, such as [ `A | `B ], can be.</source>
+        <target state="new">The type '{0}' cannot be included in a polymorphic variant type: only exact polymorphic variant types, such as [ `A | `B ], can be.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="tcPolymorphicVariantRequiredTagNotListed">
+        <source>The required tag '{0}' is not one of the tags this polymorphic variant type allows.</source>
+        <target state="new">The required tag '{0}' is not one of the tags this polymorphic variant type allows.</target>
+        <note />
+      </trans-unit>
       <trans-unit id="tcRecordExplicitFieldShadowsSpreadField">
         <source>Explicit field '{0}' shadows a field with the same name from an earlier spread.</source>
         <target state="new">Explicit field '{0}' shadows a field with the same name from an earlier spread.</target>

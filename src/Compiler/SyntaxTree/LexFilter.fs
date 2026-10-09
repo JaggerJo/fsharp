@@ -1135,6 +1135,20 @@ type LexFilterImpl (
                                 let dotTokenTup = peekNextTokenTup()
                                 stack <- (pool.UseLocation(dotTokenTup, HIGH_PRECEDENCE_PAREN_APP), false) :: stack
                             true
+                    // A polymorphic variant type, [> `A ] or [< `A | `B > `A ]: its '>' closes nothing
+                    | LBRACK
+                    | LBRACK_LESS when (match peekNextToken() with GREATER _ | POLYVARIANT_TAG _ -> true | _ -> false) ->
+                        let rec skipVariantBrackets depth =
+                            let tokenTup = popNextTokenTup()
+                            stack <- (tokenTup, true) :: stack
+                            match tokenTup.Token with
+                            | EOF _ -> false
+                            | LBRACK | LBRACK_LESS -> skipVariantBrackets (depth + 1)
+                            | RBRACK when depth = 1 -> true
+                            | RBRACK -> skipVariantBrackets (depth - 1)
+                            | _ -> skipVariantBrackets depth
+                        skipVariantBrackets 1 && scanAhead nParen
+
                     | LPAREN
                     | LESS _
                     | LBRACK

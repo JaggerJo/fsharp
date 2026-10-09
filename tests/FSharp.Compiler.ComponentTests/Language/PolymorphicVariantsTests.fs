@@ -58,6 +58,21 @@ let describe = function
 
         "let lam = fun (`Wrap x) -> x + 1", "val lam: 'a -> int when 'a: [< `Wrap of int ]"
         "let sorted = List.sort [ `B 2; `A 3; `A 1 ]", "val sorted: [ `A of int | `B of int ] list"
+
+        "type Rgba = [ `Red | `Green | `Alpha of byte ]", "type Rgba = [ `Alpha of byte | `Green | `Red ]"
+        "type Color = [ `Red | `Green ]\ntype Rgba = [ Color | `Alpha of byte ]", "type Rgba = [ `Alpha of byte | `Green | `Red ]"
+        "let anyRed (c: [> `Red ]) = c", "val anyRed: c: 'a -> 'a when 'a: [> `Red ]"
+        "let primary (c: [< `Red | `Green ]) = 1", "val primary: c: 'a -> int when 'a: [< `Green | `Red ]"
+        "let mixed (c: [< `Red | `Green > `Red ]) = 1", "val mixed: c: 'a -> int when 'a: [< `Green | `Red > `Red ]"
+        "let keepRed<'r when 'r: [> `Red ]> (x: 'r) : 'r = x", "val keepRed: x: 'r -> 'r when 'r: [> `Red ]"
+
+        """
+type Color = [ `Red | `Green ]
+let describe x =
+    match x with
+    | #Color -> "color"
+    | `Alpha a -> string a""",
+        "val describe: x: 'a -> string when 'a: [< `Alpha of 'b | `Green | `Red ]"
     ]
     |> Seq.map (fun (source, expected) -> [| box source; box expected |])
 
@@ -71,6 +86,46 @@ let ``Inferred types`` (source: string, expected: string) =
     Assert.Contains(expected, signature)
 
 module Diagnostics =
+
+    [<Fact>]
+    let ``A #T pattern binds at T`` () =
+        FSharp """
+module M
+type Shape = [ `Circle of float | `Rect of float * float ]
+let area (s: Shape) = match s with `Circle r -> r | `Rect (w, h) -> w * h
+let withSquares x =
+    match x with
+    | #Shape as s -> area s
+    | `Square side -> side * side
+let r = withSquares (`Square 2.0)
+"""
+        |> withLangVersionPreview
+        |> typecheck
+        |> shouldSucceed
+        |> withDiagnostics []
+
+    [<Fact>]
+    let ``Only exact variant types can be included`` () =
+        FSharp """
+module M
+type T = [ int | `A ]
+"""
+        |> withLangVersionPreview
+        |> typecheck
+        |> shouldFail
+        |> withErrorCode 3926
+
+    [<Fact>]
+    let ``A required tag must be allowed`` () =
+        FSharp """
+module M
+let f (x: [< `A | `B > `C ]) = 1
+"""
+        |> withLangVersionPreview
+        |> typecheck
+        |> shouldFail
+        |> withErrorCode 3927
+
 
     [<Fact>]
     let ``A closed type rejects other tags`` () =
@@ -123,6 +178,40 @@ let red = `Red
         |> typecheck
         |> shouldFail
         |> withErrorCode 3350
+
+module Signatures =
+
+    let private implementation =
+        """
+module M
+let area shape =
+    match shape with
+    | `Circle r -> r
+    | `Rect (w, h) -> w * h
+"""
+
+    let private checkAgainst signature =
+        Fsi signature
+        |> withAdditionalSourceFile (FsSource implementation)
+        |> withLangVersionPreview
+        |> compile
+
+    [<Fact>]
+    let ``A signature may give a stricter row`` () =
+        checkAgainst """
+module M
+val area: shape: 'a -> int when 'a: [< `Circle of int ]
+"""
+        |> shouldSucceed
+
+    [<Fact>]
+    let ``A signature may not give a looser row`` () =
+        checkAgainst """
+module M
+val area: shape: 'a -> int when 'a: [< `Circle of int | `Rect of int * int | `Tri ]
+"""
+        |> shouldFail
+        |> withErrorCode 340
 
 module Runtime =
 

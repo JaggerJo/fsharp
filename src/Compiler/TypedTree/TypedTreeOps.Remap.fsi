@@ -458,6 +458,9 @@ module internal TypeDecomposition =
 
     val tryGetPolyVariantRow: tp: Typar -> PolyVariantRow voption
 
+    [<return: Struct>]
+    val (|PolyVariantConstraint|_|): cx: TyparConstraint -> unit voption
+
     val tryAnyParTy: TcGlobals -> TType -> Typar voption
 
     val tryAnyParTyOption: TcGlobals -> TType -> Typar option

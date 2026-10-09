@@ -513,7 +513,7 @@ let mkPolyVariantConstruction (g: TcGlobals.TcGlobals) m variantTy tag payloadTy
 
     mkPolyVariantRetype reprExpr variantTy m
 
-/// Build 'fun (v: variantTy) -> body (tagExpr, payloadExpr)' where the two expressions read the tag and the boxed payload of v
+/// Build 'fun (v: variantTy) -> body v tagExpr payloadExpr' where the last two read the tag and the boxed payload of v
 let private mkPolyVariantDestructor (g: TcGlobals.TcGlobals) m variantTy bodyTy body =
     let reprTy = polyVariantReprTy g
     let v, vExpr = mkCompGenLocal m "variant" variantTy
@@ -527,7 +527,7 @@ let private mkPolyVariantDestructor (g: TcGlobals.TcGlobals) m variantTy bodyTy 
         mkTupleFieldGet g (tupInfo, rExpr, [ g.string_ty; g.obj_ty_noNulls ], 1, m)
 
     let bodyExpr =
-        mkCompGenLet m r (mkPolyVariantRetype vExpr reprTy m) (body tagExpr payloadExpr)
+        mkCompGenLet m r (mkPolyVariantRetype vExpr reprTy m) (body vExpr tagExpr payloadExpr)
 
     mkLambda m v (bodyExpr, bodyTy)
 
@@ -538,7 +538,7 @@ let mkPolyVariantTagPattern (g: TcGlobals.TcGlobals) m variantTy tag payloadTy s
     let resTy = mkOptionTy g payloadTy
 
     let apExpr =
-        mkPolyVariantDestructor g m variantTy resTy (fun tagExpr payloadExpr ->
+        mkPolyVariantDestructor g m variantTy resTy (fun _ tagExpr payloadExpr ->
             mkCond
                 DebugPointAtBinding.NoneAtInvisible
                 m
@@ -549,6 +549,53 @@ let mkPolyVariantTagPattern (g: TcGlobals.TcGlobals) m variantTy tag payloadTy s
 
     let apinfo = PrettyNaming.APInfo(false, [ polyVariantCaseName tag, m ], m)
     TPat_query((apExpr, [ payloadTy ], ActivePatternReturnKind.RefTypeWrapper, None, 0, apinfo), subPat, m)
+
+/// The pattern #T subPat: any tag of the exact variant type T, with subPat matching the value at T
+let mkPolyVariantTypePattern (g: TcGlobals.TcGlobals) m scrutTy variantTy subPat =
+    let tags =
+        match tryDestPolyVariantTy g variantTy with
+        | ValueSome(struct (tags, _)) -> tags
+        | ValueNone -> []
+
+    let resTy = mkOptionTy g variantTy
+
+    let apExpr =
+        mkPolyVariantDestructor g m scrutTy resTy (fun vExpr tagExpr _ ->
+            let isTagOfType =
+                match tags with
+                | [] -> mkFalse g m
+                | _ -> tags |> List.map (mkTagTest g m tagExpr) |> List.reduce (mkLazyOr g m)
+
+            mkCond
+                DebugPointAtBinding.NoneAtInvisible
+                m
+                resTy
+                isTagOfType
+                (mkSome g variantTy (mkPolyVariantRetype vExpr variantTy m) m)
+                (mkNone g variantTy m))
+
+    TPat_query(
+        (apExpr, [ variantTy ], ActivePatternReturnKind.RefTypeWrapper, None, 0, PrettyNaming.APInfo(false, [ "#", m ], m)),
+        subPat,
+        m
+    )
+
+/// The total pattern that views a value whose tag is known to be one of T at the exact variant type T
+let private mkPolyVariantNarrowPattern m scrutTy variantTy subPat =
+    let v, vExpr = mkCompGenLocal m "variant" scrutTy
+    let apExpr = mkLambda m v (mkPolyVariantRetype vExpr variantTy m, variantTy)
+
+    TPat_query(
+        (apExpr, [ variantTy ], ActivePatternReturnKind.RefTypeWrapper, None, 0, PrettyNaming.APInfo(true, [ "#", m ], m)),
+        subPat,
+        m
+    )
+
+let private (|PolyVariantTypePattern|_|) g pat =
+    match pat with
+    | TPat_query((apExpr, [ variantTy ], _, None, 0, PrettyNaming.APInfo(false, [ "#", _ ], _)), subPat, m) ->
+        Some(domainOfFunTy g (tyOfExpr g apExpr), variantTy, subPat, m)
+    | _ -> None
 
 let private (|PolyVariantTagPattern|_|) g pat =
     match pat with
@@ -597,6 +644,22 @@ let rec private visitPolyVariantPositions
 
         onTest path
         visit (polyVariantCaseName tag :: path) subPat
+    | PolyVariantTypePattern g (scrutTy, variantTy, subPat, m) ->
+        match tryDestPolyVariantTy g variantTy with
+        | ValueSome(struct (tags, payloadTys)) ->
+            for tag, payloadTy in List.zip tags payloadTys do
+                onSite
+                    {
+                        Path = path
+                        VariantTy = scrutTy
+                        Tag = tag
+                        PayloadTy = payloadTy
+                        Range = m
+                    }
+        | ValueNone -> ()
+
+        onTest path
+        visit ("#" :: path) subPat
     | TPat_wild _ -> onWild path
     | TPat_as(p, _, _) -> visit path p
     | TPat_disjs(ps, _)
@@ -646,6 +709,19 @@ let rec private closePolyVariantPositions
             match pat with
             | TPat_query(q, _, m) -> TPat_query(q, subPat, m)
             | _ -> pat
+    | PolyVariantTypePattern g (scrutTy, variantTy, subPat, m) ->
+        let subPat = recurse subPat ("#" :: path)
+
+        match closed.TryFind path, tryDestPolyVariantTy g variantTy with
+        | Some(_, mkCase), ValueSome(struct (tags, _)) ->
+            let anyTagOfType =
+                TPat_disjs([ for tag in tags -> mkCase [ tag ] (TPat_wild m) m ], m)
+
+            TPat_conjs([ anyTagOfType; mkPolyVariantNarrowPattern m scrutTy variantTy subPat ], m)
+        | _ ->
+            match pat with
+            | TPat_query(q, _, m) -> TPat_query(q, subPat, m)
+            | _ -> pat
     | TPat_as(p, b, m) -> TPat_as(recurse p path, b, m)
     | TPat_disjs(ps, m) -> TPat_disjs(ps |> List.map (fun p -> recurse p path), m)
     | TPat_conjs(ps, m) -> TPat_conjs(ps |> List.map (fun p -> recurse p path), m)
@@ -677,7 +753,7 @@ let private mkPolyVariantTotalPattern (g: TcGlobals.TcGlobals) m variantTy (tags
     let resTy = apinfo.ResultType g m payloadTys ActivePatternReturnKind.RefTypeWrapper
 
     let apExpr =
-        mkPolyVariantDestructor g m variantTy resTy (fun tagExpr payloadExpr ->
+        mkPolyVariantDestructor g m variantTy resTy (fun _ tagExpr payloadExpr ->
             let mkResult i payloadTy =
                 let payload = mkPolyVariantUnbox payloadTy payloadExpr m
 

@@ -1812,3 +1812,5 @@ csPolymorphicVariantTagNotInType,"The polymorphic variant type '%s' does not all
 csPolymorphicVariantTagExcluded,"The tag '%s' is used here, but this polymorphic variant type allows at most %s."
 csPolymorphicVariantTagsDiffer,"The polymorphic variant types '%s' and '%s' carry different tags."
 3925,tcPolymorphicVariantArgumentMismatch,"A polymorphic variant tag takes at most one argument. Use a tuple to carry several values, e.g. '%s (a, b)'."
+3926,tcPolymorphicVariantIncludeNotExact,"The type '%s' cannot be included in a polymorphic variant type: only exact polymorphic variant types, such as [ `A | `B ], can be."
+3927,tcPolymorphicVariantRequiredTagNotListed,"The required tag '%s' is not one of the tags this polymorphic variant type allows."

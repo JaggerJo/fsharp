@@ -447,6 +447,9 @@ type SynTypeConstraint =
     /// F# syntax is SomeThing<'T>
     | WhereSelfConstrained of selfConstraint: SynType * range: range
 
+    /// F# syntax is 'typar: [> `A ], 'typar: [< `A | `B ] or 'typar: [< `A | `B > `A ]
+    | WhereTyparIsPolymorphicVariant of typar: SynTypar * variantType: SynType * range: range
+
     member Range: range
 
 /// List of type parameter declarations with optional type constraints,
@@ -466,6 +469,25 @@ type SynTupleTypeSegment =
     | Type of typeName: SynType
     | Star of range: range
     | Slash of range: range
+
+    member Range: range
+
+/// Which tags a polymorphic variant type written in source allows
+[<RequireQualifiedAccess>]
+type SynPolymorphicVariantBound =
+    /// [ `A | `B ]: exactly these tags
+    | Exact
+    /// [> `A | `B ]: at least these tags
+    | AtLeast
+    /// [< `A | `B ]: at most these tags
+    | AtMost
+
+[<NoEquality; NoComparison; RequireQualifiedAccess>]
+type SynPolymorphicVariantElement =
+    /// `A or `A of type
+    | Tag of tag: Ident * payloadType: SynType option * range: range
+    /// A polymorphic variant type whose tags are included, e.g. Color in [ Color | `Alpha of byte ]
+    | Include of variantType: SynType * range: range
 
     member Range: range
 
@@ -561,6 +583,13 @@ type SynType =
     /// F# syntax: x: 't & #I1 & #I2
     /// Shorthand for x: 't when 't :> I1 and 't :> I2
     | Intersection of typar: SynTypar option * types: SynType list * range: range * trivia: SynTyparDeclTrivia
+
+    /// F# syntax: [ `A of int | `B ], [> `A ], [< `A | `B ] or [< `A | `B > `A ]
+    | PolymorphicVariant of
+        bound: SynPolymorphicVariantBound *
+        elements: SynPolymorphicVariantElement list *
+        requiredTags: Ident list *
+        range: range
 
     /// Gets the syntax range of this construct
     member Range: range
@@ -1202,6 +1231,9 @@ type SynPat =
 
     /// A polymorphic variant tag pattern: `Tag or `Tag pat
     | PolymorphicVariant of tag: Ident * argPat: SynPat option * range: range
+
+    /// '#Color': any tag of the exact polymorphic variant type Color
+    | PolymorphicVariantType of variantType: SynType * range: range
 
     /// '?id' -- for optional argument names
     | OptionalVal of ident: Ident * range: range

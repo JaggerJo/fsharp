@@ -303,6 +303,10 @@ and TcPat warnOnUpper (cenv: cenv) env valReprInfo vFlags (patEnv: TcPatLinearEn
         CallExprHasTypeSinkSynthetic cenv.tcSink (m, env.NameEnv, ty, env.AccessRights)
         (fun _ -> TPat_wild m), patEnv
 
+    // '#Color as c' binds c at Color, not at the scrutinee type
+    | SynPat.As (SynPat.PolymorphicVariantType (synVariantTy, _), synAsPat, m) ->
+        TcPatPolymorphicVariantType warnOnUpper cenv env vFlags patEnv ty synVariantTy (Some synAsPat) m
+
     | SynPat.IsInst (synTargetTy, m)
     | SynPat.As (SynPat.IsInst(synTargetTy, m), _, _) ->
         TcPatIsInstance warnOnUpper cenv env valReprInfo vFlags patEnv ty synPat synTargetTy m
@@ -372,6 +376,9 @@ and TcPat warnOnUpper (cenv: cenv) env valReprInfo vFlags (patEnv: TcPatLinearEn
     | SynPat.PolymorphicVariant (tag, argPatOpt, m) ->
         TcPatPolymorphicVariant warnOnUpper cenv env vFlags patEnv ty tag argPatOpt m
 
+    | SynPat.PolymorphicVariantType (synVariantTy, m) ->
+        TcPatPolymorphicVariantType warnOnUpper cenv env vFlags patEnv ty synVariantTy None m
+
     | SynPat.Null m ->
         TcNullPat cenv env patEnv ty m
 
@@ -393,6 +400,26 @@ and TcPatPolymorphicVariant warnOnUpper cenv env vFlags patEnv ty (tag: Ident) a
     // Tag patterns compile to active patterns, which cannot match generalized values
     let patEnvR = TcPatLinearEnv(tpenv, names, takenNames, true)
     (fun values -> mkPolyVariantTagPattern g m ty tag.idText payloadTy (argPatPhase2 values)), patEnvR
+
+/// #Color or #Color as pat - match any tag of Color, then match the value, at Color, against pat
+and TcPatPolymorphicVariantType warnOnUpper cenv env vFlags patEnv ty synVariantTy synAsPatOpt m =
+    let g = cenv.g
+    checkLanguageFeatureAndRecover g.langVersion LanguageFeature.PolymorphicVariants m
+    let (TcPatLinearEnv(tpenv, names, takenNames, _)) = patEnv
+    let variantTy, tpenv = TcTypeAndRecover cenv NewTyparsOK CheckCxs ItemOccurrence.UseInType WarnOnIWSAM.Yes env tpenv synVariantTy
+
+    match tryDestPolyVariantTy g variantTy with
+    | ValueSome (struct (tags, payloadTys)) ->
+        for tag, payloadTy in List.zip tags payloadTys do
+            AddCxTypeHasPolymorphicVariantTag env.DisplayEnv cenv.css m NoTrace ty tag payloadTy false
+    | ValueNone ->
+        errorR (Error (FSComp.SR.tcPolymorphicVariantIncludeNotExact (NicePrint.minimalStringOfType env.DisplayEnv variantTy), synVariantTy.Range))
+
+    let synAsPat = defaultArg synAsPatOpt (SynPat.Wild m)
+    let asPatPhase2, TcPatLinearEnv(tpenv, names, takenNames, _) =
+        TcPat warnOnUpper cenv env None vFlags (TcPatLinearEnv(tpenv, names, takenNames, true)) variantTy synAsPat
+
+    (fun values -> mkPolyVariantTypePattern g m ty variantTy (asPatPhase2 values)), TcPatLinearEnv(tpenv, names, takenNames, true)
 
 and TcConstPat warnOnUpper cenv env vFlags patEnv ty synConst m =
     let g = cenv.g

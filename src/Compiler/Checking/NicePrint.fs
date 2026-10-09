@@ -876,10 +876,7 @@ module PrintTypes =
         | TyparConstraint.IsPolymorphicVariantClosed _ ->
             let isFirst =
                 tp.Constraints
-                |> List.tryFind (function
-                    | TyparConstraint.HasPolymorphicVariantTag _
-                    | TyparConstraint.IsPolymorphicVariantClosed _ -> true
-                    | _ -> false)
+                |> List.tryFind (function PolyVariantConstraint -> true | _ -> false)
                 |> Option.exists (fun cx -> obj.ReferenceEquals(cx, tpc))
 
             match tryGetPolyVariantRow tp with

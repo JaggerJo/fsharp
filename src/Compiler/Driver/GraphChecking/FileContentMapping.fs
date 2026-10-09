@@ -286,6 +286,8 @@ let visitSynType (t: SynType) : FileContentEntry list =
         | SynType.WithGlobalConstraints(typeName, constraints, _) ->
             visit typeName (fun nodes -> nodes @ List.collect visitSynTypeConstraint constraints |> continuation)
         | SynType.HashConstraint(innerType, _) -> visit innerType continuation
+        | SynType.PolymorphicVariant(elements = elements) ->
+            continuation (synPolyVariantElementTypes elements |> List.collect (fun ty -> visit ty id))
         | SynType.MeasurePower(baseMeasure = baseMeasure) -> visit baseMeasure continuation
         | SynType.StaticConstant _ -> continuation []
         | SynType.StaticConstantNull _ -> continuation []
@@ -331,6 +333,7 @@ let visitSynTypeConstraint (tc: SynTypeConstraint) : FileContentEntry list =
     | SynTypeConstraint.WhereTyparIsComparable _
     | SynTypeConstraint.WhereTyparIsEquatable _ -> []
     | SynTypeConstraint.WhereTyparDefaultsToType(typeName = typeName) -> visitSynType typeName
+    | SynTypeConstraint.WhereTyparIsPolymorphicVariant(variantType = variantType) -> visitSynType variantType
     | SynTypeConstraint.WhereTyparSubtypeOfType(typeName = typeName) -> visitSynType typeName
     | SynTypeConstraint.WhereTyparSupportsMember(typars, memberSig, _) -> visitSynType typars @ visitSynMemberSig memberSig
     | SynTypeConstraint.WhereTyparIsEnum(typeArgs = typeArgs) -> List.collect visitSynType typeArgs
@@ -671,6 +674,7 @@ let visitPat (p: SynPat) : FileContentEntry list =
             let continuations = List.map visit pats
             Continuation.concatenate continuations continuation
         | SynPat.PolymorphicVariant(argPat = Some pat) -> visit pat continuation
+        | SynPat.PolymorphicVariantType(variantType = ty) -> continuation (visitSynType ty)
         | SynPat.PolymorphicVariant(argPat = None)
         | SynPat.Null _ -> continuation []
         | SynPat.OptionalVal _ -> continuation []
