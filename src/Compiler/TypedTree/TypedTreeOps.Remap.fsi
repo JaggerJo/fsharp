@@ -431,13 +431,16 @@ module internal TypeDecomposition =
 
     val tryDestAnonRecdTy: TcGlobals -> TType -> (AnonRecdTypeInfo * TType list) voption
 
-    /// Get the tags and payload types of an exact polymorphic variant type
+    /// Get the tags and payload types of an exact polymorphic variant type, unfolding a recursive one
     val tryDestPolyVariantTy: TcGlobals -> TType -> struct (string list * TTypes) voption
 
     val isPolyVariantTy: TcGlobals -> TType -> bool
 
     /// Build an exact polymorphic variant type from its tags and payload types, in any order
     val mkPolyVariantTy: tagsAndTys: (string * TType) list -> TType
+
+    /// Build a recursive polymorphic variant type, [ ... ] as 'self, whose payload types refer to it through 'self'
+    val mkRecursivePolyVariantTy: self: Typar -> tagsAndTys: (string * TType) list -> TType
 
     /// The runtime representation every polymorphic variant type erases to: the tag paired with the boxed payload, string * obj
     val polyVariantReprTy: g: TcGlobals -> TType

@@ -337,7 +337,7 @@ and [<Sealed>] ItemKeyStoreBuilder(tcGlobals: TcGlobals) =
             writeString anonInfo.ILTypeRef.BasicQualifiedName
             tinst |> List.iter (writeType false)
 
-        | TType_variant(tags, tinst) ->
+        | TType_variant(tags, tinst, _) ->
             writeString ItemKeyTags.typeTuple
             tags |> List.iter writeString
             tinst |> List.iter (writeType false)

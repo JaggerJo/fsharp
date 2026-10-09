@@ -236,7 +236,7 @@ module rec HashTypes =
             |> hashListOrderMatters (hashTType g)
             |> pipeToHash (anonInfo.SortedNames |> hashListOrderMatters hashText)
             |> addFullStructuralHash (evalAnonInfoIsStruct anonInfo)
-        | TType_variant(tags, tys) ->
+        | TType_variant(tags, tys, _) ->
             tys
             |> hashListOrderMatters (hashTType g)
             |> pipeToHash (tags |> hashListOrderMatters hashText)
@@ -560,7 +560,7 @@ module StructuralUtilities =
                 for arg in tys do
                     emitTType ctx arg
 
-            | TType_variant(tags, tys) ->
+            | TType_variant(tags, tys, _) ->
                 for tag in tags do
                     if out.Count < MaxTokenCount then
                         out.Add(TypeToken.UCase(int (hashText tag)))

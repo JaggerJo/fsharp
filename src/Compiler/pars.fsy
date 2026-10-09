@@ -2709,22 +2709,22 @@ intersectionConstraints:
 typeConstraint:
   | typar COLON LBRACK GREATER polyVariantElements RBRACK
      { let mType = rhs2 parseState 3 6
-       let ty = SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtLeast, List.rev $5, [], mType)
+       let ty = SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtLeast, List.rev $5, [], None, mType)
        SynTypeConstraint.WhereTyparIsPolymorphicVariant($1, ty, lhs parseState) }
 
   | typar COLON LBRACK_LESS polyVariantTaggedElements RBRACK
      { let mType = rhs2 parseState 3 5
-       let ty = SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtMost, List.rev $4, [], mType)
+       let ty = SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtMost, List.rev $4, [], None, mType)
        SynTypeConstraint.WhereTyparIsPolymorphicVariant($1, ty, lhs parseState) }
 
   | typar COLON LBRACK_LESS polyVariantTaggedElements GREATER polyVariantRequiredTags RBRACK
      { let mType = rhs2 parseState 3 7
-       let ty = SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtMost, List.rev $4, List.rev $6, mType)
+       let ty = SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtMost, List.rev $4, List.rev $6, None, mType)
        SynTypeConstraint.WhereTyparIsPolymorphicVariant($1, ty, lhs parseState) }
 
   | typar COLON LBRACK polyVariantElements RBRACK
      { let mType = rhs2 parseState 3 5
-       let ty = SynType.PolymorphicVariant(SynPolymorphicVariantBound.Exact, List.rev $4, [], mType)
+       let ty = SynType.PolymorphicVariant(SynPolymorphicVariantBound.Exact, List.rev $4, [], None, mType)
        SynTypeConstraint.WhereTyparIsPolymorphicVariant($1, ty, lhs parseState) }
 
   | DEFAULT typar COLON typ
@@ -6842,17 +6842,20 @@ atomType:
      { $1 }
 
   | LBRACK polyVariantElements RBRACK
-     { SynType.PolymorphicVariant(SynPolymorphicVariantBound.Exact, List.rev $2, [], lhs parseState) }
+     { SynType.PolymorphicVariant(SynPolymorphicVariantBound.Exact, List.rev $2, [], None, lhs parseState) }
+
+  | LPAREN LBRACK polyVariantElements RBRACK AS typar rparen
+     { SynType.PolymorphicVariant(SynPolymorphicVariantBound.Exact, List.rev $3, [], Some $6, lhs parseState) }
 
   | LBRACK GREATER polyVariantElements RBRACK
-     { SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtLeast, List.rev $3, [], lhs parseState) }
+     { SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtLeast, List.rev $3, [], None, lhs parseState) }
 
   /* '[<' starts an attribute too, so the first element of a bounded variant type must be a tag */
   | LBRACK_LESS polyVariantTaggedElements RBRACK
-     { SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtMost, List.rev $2, [], lhs parseState) }
+     { SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtMost, List.rev $2, [], None, lhs parseState) }
 
   | LBRACK_LESS polyVariantTaggedElements GREATER polyVariantRequiredTags RBRACK
-     { SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtMost, List.rev $2, List.rev $4, lhs parseState) }
+     { SynType.PolymorphicVariant(SynPolymorphicVariantBound.AtMost, List.rev $2, List.rev $4, None, lhs parseState) }
 
   | appTypeConPower %prec prec_atomtyp_path
      { $1 }

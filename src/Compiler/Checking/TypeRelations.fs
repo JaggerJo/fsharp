@@ -248,7 +248,16 @@ let ChooseTyparSolutionAndRange (g: TcGlobals) amap (tp:Typar) =
             | required, _ -> required
         let payloadOf tag =
             row.Payloads |> List.tryFind (fun (tag2, _) -> tag2 = tag) |> Option.map snd |> Option.defaultValue g.unit_ty
-        mkPolyVariantTy [ for tag in tags -> tag, payloadOf tag ], tp.Range
+        let tagsAndTys = [ for tag in tags -> tag, payloadOf tag ]
+        let isRecursive =
+            tagsAndTys |> List.exists (fun (_, ty) -> Zset.contains tp (freeInType CollectTyparsNoCaching ty).FreeTypars)
+        if isRecursive then
+            // The payloads mention the type being solved: solve it by a recursive variant type, [ ... ] as 'self
+            let self = Construct.NewRigidTypar "self" tp.Range
+            let selfInst = mkTyparInst [ tp ] [ mkTyparTy self ]
+            mkRecursivePolyVariantTy self [ for tag, ty in tagsAndTys -> tag, instType selfInst ty ], tp.Range
+        else
+            mkPolyVariantTy tagsAndTys, tp.Range
     | ValueNone -> ChooseTyparSolutionAndRangeCore g amap tp
 
 let ChooseTyparSolution g amap tp =

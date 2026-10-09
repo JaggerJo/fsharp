@@ -1620,11 +1620,15 @@ module internal DebugPrint =
                     (List.map2 (fun nm ty -> wordL (tagField nm) --- auxTypeAtomL env ty) (Array.toList anonInfo.SortedNames) tys)
             )
 
-        | TType_variant(tags, tys) ->
+        | TType_variant(tags, tys, self) ->
             let tagL tag ty =
                 wordL (tagText ("`" + tag)) ^^ wordL (tagText "of") ^^ auxTypeL env ty
 
-            squareBracketL (sepListL (wordL (tagText "|")) (List.map2 tagL tags tys))
+            let rowL = squareBracketL (sepListL (wordL (tagText "|")) (List.map2 tagL tags tys))
+
+            match self with
+            | Some self -> bracketL (rowL ^^ wordL (tagText "as") ^^ auxTyparWrapL env false self)
+            | None -> rowL
 
         | TType_measure unt ->
 #if DEBUG

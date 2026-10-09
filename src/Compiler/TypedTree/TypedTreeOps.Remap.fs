@@ -231,9 +231,9 @@ module internal TypeRemapping =
             else
                 TType_anon(AnonRecdTypeInfo.Create(anonInfo.Assembly, tupInfoR, anonInfo.SortedIds), lR)
 
-        | TType_variant(tags, l) as ty ->
+        | TType_variant(tags, l, self) as ty ->
             let lR = remapTypesAux tyenv l
-            if l === lR then ty else TType_variant(tags, lR)
+            if l === lR then ty else TType_variant(tags, lR, self)
 
         | TType_tuple(tupInfo, l) as ty ->
             let tupInfoR = remapTupInfoAux tyenv tupInfo
@@ -1319,7 +1319,10 @@ module internal TypeDecomposition =
         ty
         |> stripTyEqns g
         |> (function
-        | TType_variant(tags, tys) -> ValueSome(struct (tags, tys))
+        | TType_variant(tags, tys, None) -> ValueSome(struct (tags, tys))
+        | TType_variant(tags, tys, Some self) as ty ->
+            // Unfold: the payload types refer to the type itself through 'self'
+            ValueSome(struct (tags, instTypes (mkTyparInst [ self ] [ ty ]) tys))
         | _ -> ValueNone)
 
     let isPolyVariantTy g ty = (tryDestPolyVariantTy g ty).IsSome
@@ -1329,7 +1332,14 @@ module internal TypeDecomposition =
             tagsAndTys
             |> List.sortWith (fun (tag1, _) (tag2, _) -> String.CompareOrdinal(tag1, tag2))
 
-        TType_variant(List.map fst sorted, List.map snd sorted)
+        TType_variant(List.map fst sorted, List.map snd sorted, None)
+
+    let mkRecursivePolyVariantTy (self: Typar) (tagsAndTys: (string * TType) list) =
+        let sorted =
+            tagsAndTys
+            |> List.sortWith (fun (tag1, _) (tag2, _) -> String.CompareOrdinal(tag1, tag2))
+
+        TType_variant(List.map fst sorted, List.map snd sorted, Some self)
 
     let polyVariantReprTy (g: TcGlobals) =
         TType_tuple(TupInfo.Const false, [ g.string_ty; g.obj_ty_noNulls ])
@@ -1712,7 +1722,12 @@ module internal TypeEquivalence =
         | TType_anon(anonInfo1, l1), TType_anon(anonInfo2, l2) ->
             anonInfoEquiv anonInfo1 anonInfo2 && typesAEquivAux erasureFlag g aenv l1 l2
 
-        | TType_variant(tags1, l1), TType_variant(tags2, l2) -> tags1 = tags2 && typesAEquivAux erasureFlag g aenv l1 l2
+        | TType_variant(tags1, l1, self1), TType_variant(tags2, l2, self2) ->
+            tags1 = tags2
+            && (match self1, self2 with
+                | None, None -> typesAEquivAux erasureFlag g aenv l1 l2
+                | Some self1, Some self2 -> typesAEquivAux erasureFlag g (aenv.BindEquivTypars [ self1 ] [ self2 ]) l1 l2
+                | _ -> false)
 
         | TType_measure m1, TType_measure m2 ->
             match erasureFlag with

@@ -9672,6 +9672,8 @@ FSharp.Compiler.Syntax.SynType+PolymorphicVariant: Microsoft.FSharp.Collections.
 FSharp.Compiler.Syntax.SynType+PolymorphicVariant: Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.Ident] requiredTags
 FSharp.Compiler.Syntax.SynType+PolymorphicVariant: Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynPolymorphicVariantElement] elements
 FSharp.Compiler.Syntax.SynType+PolymorphicVariant: Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynPolymorphicVariantElement] get_elements()
+FSharp.Compiler.Syntax.SynType+PolymorphicVariant: Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynTypar] get_self()
+FSharp.Compiler.Syntax.SynType+PolymorphicVariant: Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynTypar] self
 FSharp.Compiler.Syntax.SynType+SignatureParameter: Boolean get_optional()
 FSharp.Compiler.Syntax.SynType+SignatureParameter: Boolean optional
 FSharp.Compiler.Syntax.SynType+SignatureParameter: FSharp.Compiler.Syntax.SynType get_usedType()
@@ -9804,7 +9806,7 @@ FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewLongIdentApp(F
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewMeasurePower(FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Syntax.SynRationalConst, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewOr(FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Text.Range, FSharp.Compiler.SyntaxTrivia.SynTypeOrTrivia)
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewParen(FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Text.Range)
-FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewPolymorphicVariant(FSharp.Compiler.Syntax.SynPolymorphicVariantBound, Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynPolymorphicVariantElement], Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.Ident], FSharp.Compiler.Text.Range)
+FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewPolymorphicVariant(FSharp.Compiler.Syntax.SynPolymorphicVariantBound, Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynPolymorphicVariantElement], Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.Ident], Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynTypar], FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewSignatureParameter(Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynAttributeList], Boolean, Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.Ident], FSharp.Compiler.Syntax.SynType, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewStaticConstant(FSharp.Compiler.Syntax.SynConst, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynType: FSharp.Compiler.Syntax.SynType NewStaticConstantExpr(FSharp.Compiler.Syntax.SynExpr, FSharp.Compiler.Text.Range)

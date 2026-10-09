@@ -409,6 +409,19 @@ let stripMemberAccessOnNullableCtx (csenv: ConstraintSolverEnv) =
     | ContextInfo.MemberAccessOnNullable _ -> { csenv with eContextInfo = ContextInfo.NoContext }
     | _ -> csenv
 
+/// The payload types of two exact variant types, ready to compare tag by tag. Recursive types are compared
+/// by renaming one 'self' to the other; a recursive type compared with a non-recursive one is unfolded once.
+let alignPolyVariantPayloads g ty1 ty2 =
+    let unfold ty =
+        match tryDestPolyVariantTy g ty with
+        | ValueSome(struct (_, tys)) -> tys
+        | ValueNone -> []
+
+    match ty1, ty2 with
+    | TType_variant(_, l1, Some self1), TType_variant(_, l2, Some self2) -> l1, instTypes (mkTyparInst [ self2 ] [ mkTyparTy self1 ]) l2
+    | TType_variant(_, l1, None), TType_variant(_, l2, None) -> l1, l2
+    | _ -> unfold ty1, unfold ty2
+
 let polyVariantTagsText (tags: string list) =
     match tags with
     | [] -> "no tags"
@@ -422,7 +435,7 @@ let rec occursCheck g un ty =
     | TType_ucase(_, l)
     | TType_app (_, l, _)
     | TType_anon(_, l)
-    | TType_variant(_, l)
+    | TType_variant(_, l, _)
     | TType_tuple (_, l) -> List.exists (occursCheck g un) l
     | TType_fun (domainTy, rangeTy, _) -> occursCheck g un domainTy || occursCheck g un rangeTy
     | TType_var (r, _) ->  typarEq un r
@@ -871,7 +884,7 @@ let rec SimplifyMeasuresInType g resultFirst (generalizable, generalized as para
     | TType_ucase(_, l)
     | TType_app (_, l, _)
     | TType_anon (_,l)
-    | TType_variant (_, l)
+    | TType_variant (_, l, _)
     | TType_tuple (_, l) -> SimplifyMeasuresInTypes g param l
 
     | TType_fun (domainTy, rangeTy, _) ->
@@ -918,7 +931,7 @@ let rec GetMeasureVarGcdInType v ty =
     | TType_ucase(_, l)
     | TType_app (_, l, _)
     | TType_anon (_,l)
-    | TType_variant (_, l)
+    | TType_variant (_, l, _)
     | TType_tuple (_, l) -> GetMeasureVarGcdInTypes v l
 
     | TType_fun (domainTy, rangeTy, _) -> GcdRational (GetMeasureVarGcdInType v domainTy) (GetMeasureVarGcdInType v rangeTy)
@@ -1464,9 +1477,10 @@ and SolveTypeEqualsType (csenv: ConstraintSolverEnv) ndeep m2 (trace: OptionalTr
                 do! SolveTypeEqualsTypeEqns csenv ndeep m2 trace None l1 l2
             }
 
-        | TType_variant (tags1, l1), TType_variant (tags2, l2) ->
+        | TType_variant (tags1, _, _), TType_variant (tags2, _, _) ->
             trackErrors {
                 do! SolvePolyVariantTagsEqual csenv m2 sty1 sty2 tags1 tags2
+                let l1, l2 = alignPolyVariantPayloads g sty1 sty2
                 do! SolveTypeEqualsTypeEqns csenv ndeep m2 trace None l1 l2
             }
 
@@ -1656,8 +1670,9 @@ and SolveTypeSubsumesType (csenv: ConstraintSolverEnv) ndeep m2 (trace: Optional
                 do! SolveTypeEqualsTypeEqns csenv ndeep m2 trace cxsln l1 l2
             }
         // An exact variant type is a subtype of any exact variant type with more tags, the shared tags carrying the same payloads
-        | TType_variant (tags1, l1), TType_variant (tags2, l2) ->
+        | TType_variant (tags1, _, _), TType_variant (tags2, _, _) ->
             trackErrors {
+                let l1, l2 = alignPolyVariantPayloads g sty1 sty2
                 let payloadsByTag1 = List.zip tags1 l1
 
                 for tag2, payloadTy2 in List.zip tags2 l2 do

@@ -1251,7 +1251,7 @@ module internal TypeTesters =
 
             | TType_ucase(_, b)
             | TType_anon(_, b)
-            | TType_variant(_, b)
+            | TType_variant(_, b, _)
             | TType_tuple(_, b) -> List.foldBack (fun ty tys -> getErasedTypes g ty false @ tys) b []
 
             | TType_fun(domainTy, rangeTy, nullness) ->

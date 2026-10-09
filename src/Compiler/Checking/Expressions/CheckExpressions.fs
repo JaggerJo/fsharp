@@ -4229,7 +4229,7 @@ let rec TcTyparConstraint ridx (cenv: cenv) newOk checkConstraints occ (env: TcE
     | SynTypeConstraint.WhereTyparSupportsNull(tp, m) ->
         TcSimpleTyparConstraint cenv env newOk tpenv tp m AddCxTypeUseSupportsNull
 
-    | SynTypeConstraint.WhereTyparIsPolymorphicVariant(tp, SynType.PolymorphicVariant (bound, elements, requiredTags, _), m) ->
+    | SynTypeConstraint.WhereTyparIsPolymorphicVariant(tp, SynType.PolymorphicVariant (bound, elements, requiredTags, _, _), m) ->
         checkLanguageFeatureAndRecover g.langVersion LanguageFeature.PolymorphicVariants m
         let tagsAndTys, tpenv = TcPolyVariantElements cenv env newOk checkConstraints occ tpenv elements
         let tpR, tpenv = TcTypar cenv env newOk tpenv tp
@@ -4670,8 +4670,11 @@ and TcTypeOrMeasure kindOpt (cenv: cenv) newOk checkConstraints occ (iwsam: Warn
     | SynType.Intersection (tp, tys, m, _) ->
         TcIntersectionConstraint cenv env newOk checkConstraints occ tpenv tp tys m
 
-    | SynType.PolymorphicVariant (bound, elements, requiredTags, m) ->
+    | SynType.PolymorphicVariant (bound, elements, requiredTags, None, m) ->
         TcPolyVariantType cenv env newOk checkConstraints occ tpenv bound elements requiredTags m
+
+    | SynType.PolymorphicVariant (_, elements, _, Some synSelf, m) ->
+        TcRecursivePolyVariantType cenv env newOk checkConstraints occ tpenv elements synSelf m
 
     | SynType.StaticConstant (synConst, m) ->
         TcTypeStaticConstant kindOpt tpenv synConst m
@@ -4936,6 +4939,22 @@ and TcPolyVariantType (cenv: cenv) env newOk checkConstraints occ tpenv bound el
         let tpTy = mkTyparTy tp
         AddPolyVariantRowConstraints cenv env m tpTy bound tagsAndTys requiredTags
         tpTy, tpenv
+
+// ([ `Num of int | `Add of 'self * 'self ] as 'self)
+and TcRecursivePolyVariantType (cenv: cenv) env newOk checkConstraints occ tpenv elements (SynTypar (selfId, _, _)) m =
+    checkLanguageFeatureAndRecover cenv.g.langVersion LanguageFeature.PolymorphicVariants m
+    let self = Construct.NewRigidTypar selfId.idText selfId.idRange
+
+    // 'self is in scope only in the payload types
+    let outerSelfOpt = TryFindUnscopedTypar selfId.idText tpenv
+    let tagsAndTys, tpenv = TcPolyVariantElements cenv env newOk checkConstraints occ (AddUnscopedTypar selfId.idText self tpenv) elements
+
+    let tpenv =
+        match outerSelfOpt with
+        | Some outerSelf -> AddUnscopedTypar selfId.idText outerSelf tpenv
+        | None -> HideUnscopedTypars [ self ] tpenv
+
+    mkRecursivePolyVariantTy self tagsAndTys, tpenv
 
 // (x: 't & #I1 & #I2)
 // (x: #I1 & #I2)

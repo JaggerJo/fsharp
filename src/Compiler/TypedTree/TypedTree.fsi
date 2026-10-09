@@ -3262,7 +3262,9 @@ type TType =
 
     /// Indicates the type is an exact polymorphic variant type, [ `A of int | `B ]. 'tags' are sorted ordinally and
     /// 'payloadTys' holds the payload type of each tag, 'unit' for a tag without payload.
-    | TType_variant of tags: string list * payloadTys: TTypes
+    /// A recursive variant type, [ `Num of int | `Add of 'self * 'self ] as 'self, binds 'self: its payload types
+    /// refer to the type itself through it.
+    | TType_variant of tags: string list * payloadTys: TTypes * self: Typar option
 
     /// Indicates the type is a function type.
     ///

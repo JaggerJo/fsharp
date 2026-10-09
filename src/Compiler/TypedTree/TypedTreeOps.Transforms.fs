@@ -592,9 +592,11 @@ module internal TypeTestsAndPatterns =
             | ValueNone -> ValueSome []
             | ValueSome(_anonInfo, elemTys) -> ValueSome elemTys
         elif isPolyVariantTy g ty then
-            match tryDestPolyVariantTy g ty with
-            | ValueSome(struct (_tags, payloadTys)) -> ValueSome payloadTys
-            | ValueNone -> ValueSome []
+            match stripTyEqns g ty with
+            | TType_variant(_, payloadTys, None) -> ValueSome payloadTys
+            // The recursive occurrences are comparable exactly when the rest of the type is, so they need no check
+            | TType_variant(_, payloadTys, Some self) -> ValueSome(instTypes (mkTyparInst [ self ] [ g.unit_ty ]) payloadTys)
+            | _ -> ValueSome []
         else
             match tryAppTy g ty with
             | ValueSome(tcref, tinst) ->

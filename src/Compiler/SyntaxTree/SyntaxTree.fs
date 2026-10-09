@@ -524,6 +524,7 @@ type SynType =
         bound: SynPolymorphicVariantBound *
         elements: SynPolymorphicVariantElement list *
         requiredTags: Ident list *
+        self: SynTypar option *
         range: range
 
     member x.Range =

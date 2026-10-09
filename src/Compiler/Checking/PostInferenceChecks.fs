@@ -456,8 +456,11 @@ let rec CheckTypeDeep<'V when 'V :> ITypeVisitor and 'V: struct>
         CheckTypesDeep cenv v g env tinst
 
     | TType_tuple (_, tys)
-    | TType_variant (_, tys) ->
+    | TType_variant (_, tys, None) ->
         CheckTypesDeep cenv v g env tys
+
+    | TType_variant (_, tys, Some self) ->
+        CheckTypesDeep cenv v g (BindTypars g env [ self ]) tys
 
     | TType_fun (s, t, _) ->
         CheckTypeDeep cenv v g env NoInfo s

@@ -1068,9 +1068,13 @@ module PrintTypes =
                 braceBarL core
 
         // Layout an exact polymorphic variant type
-        | TType_variant (tags, tys) ->
+        | TType_variant (tags, tys, self) ->
             let tagsL = List.map2 (fun tag ty -> layoutPolyVariantTag denv env tag (ValueSome ty)) tags tys
-            wordL (tagPunctuation "[") ^^ sepListL (wordL (tagPunctuation "|")) tagsL ^^ wordL (tagPunctuation "]")
+            let rowL = wordL (tagPunctuation "[") ^^ sepListL (wordL (tagPunctuation "|")) tagsL ^^ wordL (tagPunctuation "]")
+
+            match self with
+            | Some self -> bracketL (rowL ^^ wordL (tagKeyword "as") ^^ layoutTyparRefWithInfo denv env self)
+            | None -> rowL
 
         // Layout a tuple type
         | TType_tuple (tupInfo, t) ->

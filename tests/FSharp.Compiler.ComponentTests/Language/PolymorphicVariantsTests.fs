@@ -67,6 +67,25 @@ let describe = function
         "let keepRed<'r when 'r: [> `Red ]> (x: 'r) : 'r = x", "val keepRed: x: 'r -> 'r when 'r: [> `Red ]"
 
         """
+let rec eval expr =
+    match expr with
+    | `Num n -> n
+    | `Add (a, b) -> eval a + eval b""",
+        "val eval: expr: 'a -> int when 'a: [< `Add of 'a * 'a | `Num of int ]"
+
+        """
+let rec eval expr =
+    match expr with
+    | `Num n -> n
+    | `Add (a, b) -> eval a + eval b
+let exprs = ResizeArray()
+exprs.Add(`Add (`Num 1, `Num 2))
+let total () = exprs |> Seq.sumBy eval""",
+        "val exprs: ResizeArray<([ `Add of 'self * 'self | `Num of int ] as 'self)>"
+
+        "type Expr = ([ `Num of int | `Add of 'e * 'e ] as 'e)", "type Expr = ([ `Add of 'e * 'e | `Num of int ] as 'e)"
+
+        """
 type Color = [ `Red | `Green ]
 let describe x =
     match x with
@@ -222,6 +241,53 @@ let red = `Red
         |> shouldFail
         |> withErrorCode 3350
 
+module RecursiveTypes =
+
+    let private library =
+        FSharp """
+module Lib
+let rec eval expr =
+    match expr with
+    | `Num n -> n
+    | `Add (a, b) -> eval a + eval b
+    | `Neg e -> -(eval e)
+let exprs = ResizeArray()
+exprs.Add(`Add (`Num 1, `Neg (`Num 5)))
+let total () = exprs |> Seq.sumBy eval
+"""
+        |> withName "Lib"
+        |> withLangVersionPreview
+
+    [<Fact>]
+    let ``A recursive variant type is usable from another assembly`` () =
+        FSharp """
+module App
+[<EntryPoint>]
+let main _ =
+    Lib.exprs.Add(`Num 100)
+    let total = Lib.total ()
+    if total <> 96 then failwith $"expected 96, got {total}"
+    0
+"""
+        |> withLangVersionPreview
+        |> withReferences [ library ]
+        |> asExe
+        |> compileExeAndRun
+        |> shouldSucceed
+
+    [<Fact>]
+    let ``A recursive type abbreviation checks its tags`` () =
+        FSharp """
+module M
+type Expr = ([ `Num of int | `Add of 'e * 'e ] as 'e)
+let one : Expr = `Num 1
+let bad : Expr = `Add (one, `Mul (one, one))
+"""
+        |> withLangVersionPreview
+        |> typecheck
+        |> shouldFail
+        |> withErrorCode 1
+
 module Signatures =
 
     let private implementation =
@@ -298,6 +364,13 @@ let main _ =
         | `Holiday (name: string) -> name.Length | `Leap -> 29 | `Other n -> n
 
     check "many tags" (List.map day [ `Mon; `Sun; `Holiday "xmas"; `Leap; `Other 42 ]) [ 1; 7; 4; 29; 42 ]
+    let rec eval expr =
+        match expr with
+        | `Num n -> n
+        | `Add (a, b) -> eval a + eval b
+        | `Neg e -> -(eval e)
+
+    check "recursive" (eval (`Add (`Num 2, `Neg (`Num 5)))) -3
     check "equality" [ `A 1 = `A 1; `A 1 = `A 2; `A 1 = `B ] [ true; false; false ]
     check "ordering" (List.sort [ `B 2; `A 3; `A 1 ] |> List.map (function `A n -> n | `B n -> -n)) [ 1; 3; -2 ]
     check "describe" [ describe (`Num 3); describe (`Neg (`Num 4)); describe (`Neg `Zero) ] [ "3"; "-4"; "-?" ]

@@ -2540,8 +2540,14 @@ let _ =
             p_anonInfo anonInfo st
             p_tys l st
 
-        | TType_variant(tags, l) ->
+        | TType_variant(tags, l, None) ->
             p_byte 10 st
+            p_strings tags st
+            p_tys l st
+
+        | TType_variant(tags, l, Some self) ->
+            p_byte 11 st
+            p_tyar_specs [ self ] st
             p_strings tags st
             p_tys l st)
 
@@ -2631,7 +2637,13 @@ let _ =
         | 10 ->
             let tags = u_strings st
             let l = u_tys st
-            TType_variant(tags, l)
+            TType_variant(tags, l, None)
+
+        | 11 ->
+            let self = u_tyar_specs st
+            let tags = u_strings st
+            let l = u_tys st
+            TType_variant(tags, l, List.tryHead self)
 
         | _ -> ufailwith st "u_typ")
 

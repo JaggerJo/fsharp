@@ -4664,7 +4664,9 @@ type TType =
 
     /// Indicates the type is an exact polymorphic variant type, [ `A of int | `B ]. 'tags' are sorted ordinally and
     /// 'payloadTys' holds the payload type of each tag, 'unit' for a tag without payload.
-    | TType_variant of tags: string list * payloadTys: TTypes
+    /// A recursive variant type, [ `Num of int | `Add of 'self * 'self ] as 'self, binds 'self: its payload types
+    /// refer to the type itself through it.
+    | TType_variant of tags: string list * payloadTys: TTypes * self: Typar option
 
     /// TType_fun(domainType, rangeType, nullness).
     ///
@@ -4715,7 +4717,7 @@ type TType =
              | TupInfo.Const false -> ""
              | TupInfo.Const true -> "struct ")
              + "{|" + String.concat "," (Seq.map2 (fun nm ty -> nm + " " + string ty + ";") anonInfo.SortedNames tinst) + "|}"
-        | TType_variant (tags, tys) -> "[ " + String.concat " | " (List.map2 (fun tag ty -> "`" + tag + " of " + string ty) tags tys) + " ]"
+        | TType_variant (tags, tys, _) -> "[ " + String.concat " | " (List.map2 (fun tag ty -> "`" + tag + " of " + string ty) tags tys) + " ]"
         | TType_fun (domainTy, retTy, nullness) -> "(" + string domainTy + " -> " + string retTy + ")" + nullness.ToString()
         | TType_ucase (uc, tinst) -> "ucase " + uc.CaseName + (match tinst with [] -> "" | tys -> "<" + String.concat "," (List.map string tys) + ">")
         | TType_var (tp, _) ->

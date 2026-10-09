@@ -584,11 +584,12 @@ type SynType =
     /// Shorthand for x: 't when 't :> I1 and 't :> I2
     | Intersection of typar: SynTypar option * types: SynType list * range: range * trivia: SynTyparDeclTrivia
 
-    /// F# syntax: [ `A of int | `B ], [> `A ], [< `A | `B ] or [< `A | `B > `A ]
+    /// F# syntax: [ `A of int | `B ], [> `A ], [< `A | `B ], [< `A | `B > `A ] or ([ `A | `B of 'self ] as 'self)
     | PolymorphicVariant of
         bound: SynPolymorphicVariantBound *
         elements: SynPolymorphicVariantElement list *
         requiredTags: Ident list *
+        self: SynTypar option *
         range: range
 
     /// Gets the syntax range of this construct
