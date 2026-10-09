@@ -1767,6 +1767,13 @@ type TyparConstraint =
     /// An anti-constraint indicating that ref structs (e.g. Span<>) are allowed here
     | AllowsRefStruct of range: range
 
+    /// A constraint that a type is a polymorphic variant type which, if it carries the given tag, carries it with the given payload type.
+    /// When 'isRequired' the type must carry the tag (a lower bound, written [> `Tag ]).
+    | HasPolymorphicVariantTag of tag: string * payloadTy: TType * isRequired: bool * range: range
+
+    /// A constraint that a type is a polymorphic variant type carrying at most the given tags (an upper bound, written [< `A | `B ])
+    | IsPolymorphicVariantClosed of tags: string list * range: range
+
     override ToString: unit -> string
 
 [<NoEquality; NoComparison; StructuredFormatDisplay("{DebugText}")>]
@@ -3252,6 +3259,10 @@ type TType =
 
     /// Indicates the type is a tuple type. elementTypes must be of length 2 or greater.
     | TType_tuple of tupInfo: TupInfo * elementTypes: TTypes
+
+    /// Indicates the type is an exact polymorphic variant type, [ `A of int | `B ]. 'tags' are sorted ordinally and
+    /// 'payloadTys' holds the payload type of each tag, 'unit' for a tag without payload.
+    | TType_variant of tags: string list * payloadTys: TTypes
 
     /// Indicates the type is a function type.
     ///

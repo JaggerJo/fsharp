@@ -2138,6 +2138,8 @@ module GeneralizationHelpers =
                 | TOp.Array -> isNil args
                 | TOp.ExnConstr ec -> not (isExnDefinitelyMutable ec)
                 | TOp.ILAsm ([], _) -> true
+                // Boxing allocates a fresh object, like a tuple; polymorphic variant construction boxes its payload
+                | TOp.ILAsm ([ I_box _ ], _) -> true
                 | _ -> false
 
             canGeneralizeOp && List.forall (IsGeneralizableValue g) args
@@ -5383,6 +5385,8 @@ and TcPatLongIdentActivePatternCase warnOnUpper (cenv: cenv) (env: TcEnv) vFlags
                         | TyparConstraint.IsUnmanaged _
                         | TyparConstraint.RequiresDefaultConstructor _
                         | TyparConstraint.SimpleChoice _
+                        | TyparConstraint.HasPolymorphicVariantTag _
+                        | TyparConstraint.IsPolymorphicVariantClosed _
                         | TyparConstraint.NotSupportsNull _
                         | TyparConstraint.SupportsNull _ -> false))
 
@@ -5708,6 +5712,12 @@ and TcExprThen (cenv: cenv) overallTy env tpenv isArg synExpr delayed =
 
             TcExprThen cenv overallTy env tpenv false func ((DelayedApp (hpa, isInfix, Some func, arg, mFuncAndArg)) :: delayed)
 
+        // `Tag
+        // `Tag payload
+        | SynExpr.PolymorphicVariant (tag, m) ->
+            TcNonControlFlowExpr env <| fun env ->
+            TcPolymorphicVariantThen cenv overallTy env tpenv tag m delayed
+
         // e1?e2
         | SynExpr.Dynamic(e1, mQmark, e2, _) ->
              TcExprThenDynamic cenv overallTy env tpenv isArg e1 mQmark e2 delayed
@@ -5765,6 +5775,27 @@ and TcExprThenSetDynamic (cenv: cenv) overallTy env tpenv isArg e1 e2 rhsExpr m 
     let e2 = mkDynamicArgExpr e2
     let appExpr = mkSynQMarkSet m e1 e2 rhsExpr
     TcExprThen cenv overallTy env tpenv isArg appExpr delayed
+
+/// Check `Tag or `Tag payload, the payload being the argument of the first delayed application
+and TcPolymorphicVariantThen (cenv: cenv) overallTy env tpenv (tag: Ident) mTag delayed =
+    let g = cenv.g
+    checkLanguageFeatureAndRecover g.langVersion LanguageFeature.PolymorphicVariants mTag
+
+    let payloadTy = NewInferenceType g
+    let variantTy = NewInferenceType g
+
+    let payloadExpr, mExpr, tpenv, delayed =
+        match delayed with
+        | DelayedApp (_, _, _, synArg, mTagAndArg) :: otherDelayed ->
+            let payloadExpr, tpenv = TcExpr cenv (MustEqual payloadTy) env tpenv synArg
+            payloadExpr, mTagAndArg, tpenv, otherDelayed
+        | _ ->
+            UnifyTypes cenv env mTag payloadTy g.unit_ty
+            mkUnit g mTag, mTag, tpenv, delayed
+
+    AddCxTypeHasPolymorphicVariantTag env.DisplayEnv cenv.css mTag NoTrace variantTy tag.idText payloadTy true
+    let expr = mkPolyVariantConstruction g mExpr variantTy tag.idText payloadTy payloadExpr
+    PropagateThenTcDelayed cenv overallTy env tpenv mExpr (MakeApplicableExprNoFlex cenv expr) variantTy ExprAtomicFlag.NonAtomic delayed
 
 and TcExprThenDynamic (cenv: cenv) overallTy env tpenv isArg e1 mQmark e2 delayed =
    let appExpr =
@@ -6016,6 +6047,10 @@ and TcExprUndelayed (cenv: cenv) (overallTy: OverallTy) env tpenv (synExpr: SynE
     | SynExpr.Downcast (synInnerExpr, _, m) | SynExpr.InferredDowncast (synInnerExpr, m) ->
         TcNonControlFlowExpr env <| fun env ->
         TcExprDowncast cenv overallTy env tpenv (synExpr, synInnerExpr, m)
+
+    | SynExpr.PolymorphicVariant (tag, m) ->
+        TcNonControlFlowExpr env <| fun env ->
+        TcPolymorphicVariantThen cenv overallTy env tpenv tag m []
 
     | SynExpr.Null m ->
         TcNonControlFlowExpr env <| fun env ->
@@ -9657,6 +9692,7 @@ and TcImplicitOpItemThen (cenv: cenv) overallTy env id sln tpenv mItem delayed =
         | SynExpr.Quote (_, _, synExpr, _, _) -> isSimpleArgument synExpr
 
         | SynExpr.InterpolatedString _
+        | SynExpr.PolymorphicVariant _
         | SynExpr.Null _
         | SynExpr.Ident _
         | SynExpr.Const _
@@ -11323,6 +11359,11 @@ and TcMatchClauses cenv inputTy (resultTy: OverallTy) env tpenv clauses =
     let isFirst() = if first then first <- false; true else false
     let resultList,(tpEnv,_input) =
         List.mapFold (fun (unscopedTyParEnv,inputTy) -> TcMatchClause cenv inputTy resultTy env (isFirst()) unscopedTyParEnv) (tpenv,inputTy) clauses
+    let resultList =
+        if cenv.g.langVersion.SupportsFeature LanguageFeature.PolymorphicVariants then
+            CheckPolyVariantMatchClauses cenv env resultList
+        else
+            resultList
     resultList,tpEnv
 
 and TcMatchClause cenv inputTy (resultTy: OverallTy) env isFirst tpenv synMatchClause =
@@ -12223,6 +12264,11 @@ and TcLetBinding (cenv: cenv) isUse env containerInfo declKind tpenv (synBinds, 
         let valSchemes = NameMap.map (UseCombinedValReprInfo g declKind rhsExpr) prelimValSchemes2
         let values = MakeAndPublishVals cenv env (altActualParent, false, declKind, ValNotInRecScope, valSchemes, attrs, xmlDoc, literalValue)
         let checkedPat = tcPatPhase2 (TcPatPhase2Input (values, true))
+        let checkedPat =
+            if patternUsesActivePattern && g.langVersion.SupportsFeature LanguageFeature.PolymorphicVariants then
+                CheckPolyVariantPattern cenv env checkedPat
+            else
+                checkedPat
         let prelimRecValues =
             let prelimRecValues = NameMap.map fst values
             if isFixed then

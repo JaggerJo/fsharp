@@ -455,7 +455,8 @@ let rec CheckTypeDeep<'V when 'V :> ITypeVisitor and 'V: struct>
     | TType_ucase (_, tinst) ->
         CheckTypesDeep cenv v g env tinst
 
-    | TType_tuple (_, tys) ->
+    | TType_tuple (_, tys)
+    | TType_variant (_, tys) ->
         CheckTypesDeep cenv v g env tys
 
     | TType_fun (s, t, _) ->
@@ -476,6 +477,8 @@ and CheckTypeConstraintDeep cenv (v: 'V) g env x =
     | TyparConstraint.MayResolveMember(traitInfo, _) -> CheckTraitInfoDeep cenv v g env traitInfo
     | TyparConstraint.DefaultsTo(_, ty, _) -> CheckTypeDeep cenv v g env NoInfo ty
     | TyparConstraint.SimpleChoice(tys, _) -> CheckTypesDeep cenv v g env tys
+    | TyparConstraint.HasPolymorphicVariantTag(payloadTy = payloadTy) -> CheckTypeDeep cenv v g env NoInfo payloadTy
+    | TyparConstraint.IsPolymorphicVariantClosed _ -> ()
     | TyparConstraint.IsEnum(underlyingTy, _) -> CheckTypeDeep cenv v g env NoInfo underlyingTy
     | TyparConstraint.IsDelegate(argTys, retTy, _) ->
         CheckTypeDeep cenv v g env NoInfo argTys

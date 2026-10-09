@@ -409,6 +409,11 @@ let stripMemberAccessOnNullableCtx (csenv: ConstraintSolverEnv) =
     | ContextInfo.MemberAccessOnNullable _ -> { csenv with eContextInfo = ContextInfo.NoContext }
     | _ -> csenv
 
+let polyVariantTagsText (tags: string list) =
+    match tags with
+    | [] -> "no tags"
+    | _ -> tags |> List.map (fun tag -> "`" + tag) |> String.concat " | "
+
 /// Check whether a type variable occurs in the r.h.s. of a type, e.g. to catch
 /// infinite equations such as
 ///    'a = 'a list
@@ -417,6 +422,7 @@ let rec occursCheck g un ty =
     | TType_ucase(_, l)
     | TType_app (_, l, _)
     | TType_anon(_, l)
+    | TType_variant(_, l)
     | TType_tuple (_, l) -> List.exists (occursCheck g un) l
     | TType_fun (domainTy, rangeTy, _) -> occursCheck g un domainTy || occursCheck g un rangeTy
     | TType_var (r, _) ->  typarEq un r
@@ -865,6 +871,7 @@ let rec SimplifyMeasuresInType g resultFirst (generalizable, generalized as para
     | TType_ucase(_, l)
     | TType_app (_, l, _)
     | TType_anon (_,l)
+    | TType_variant (_, l)
     | TType_tuple (_, l) -> SimplifyMeasuresInTypes g param l
 
     | TType_fun (domainTy, rangeTy, _) ->
@@ -895,6 +902,7 @@ let SimplifyMeasuresInConstraint g param c =
     | TyparConstraint.DefaultsTo (_, ty, _)
     | TyparConstraint.CoercesTo(ty, _) -> SimplifyMeasuresInType g false param ty
     | TyparConstraint.SimpleChoice (tys, _) -> SimplifyMeasuresInTypes g param tys
+    | TyparConstraint.HasPolymorphicVariantTag (payloadTy = ty) -> SimplifyMeasuresInType g false param ty
     | TyparConstraint.IsDelegate (ty1, ty2, _) -> SimplifyMeasuresInTypes g param [ty1;ty2]
     | _ -> param
 
@@ -910,6 +918,7 @@ let rec GetMeasureVarGcdInType v ty =
     | TType_ucase(_, l)
     | TType_app (_, l, _)
     | TType_anon (_,l)
+    | TType_variant (_, l)
     | TType_tuple (_, l) -> GetMeasureVarGcdInTypes v l
 
     | TType_fun (domainTy, rangeTy, _) -> GcdRational (GetMeasureVarGcdInType v domainTy) (GetMeasureVarGcdInType v rangeTy)
@@ -1097,6 +1106,10 @@ and SolveTypMeetsTyparConstraints (csenv: ConstraintSolverEnv) ndeep m2 trace ty
         | TyparConstraint.IsReferenceType m2             -> SolveTypeIsReferenceType            csenv ndeep m2 trace ty
         | TyparConstraint.RequiresDefaultConstructor m2  -> SolveTypeRequiresDefaultConstructor csenv ndeep m2 trace ty
         | TyparConstraint.SimpleChoice(tys, m2)          -> SolveTypeChoice                     csenv ndeep m2 trace ty tys
+        | TyparConstraint.HasPolymorphicVariantTag(tag, payloadTy, isRequired, m2) ->
+            SolveTypeHasPolymorphicVariantTag csenv ndeep m2 trace ty tag payloadTy isRequired
+        | TyparConstraint.IsPolymorphicVariantClosed(tags, m2) ->
+            SolveTypeIsPolymorphicVariantClosed csenv ndeep m2 trace ty tags
         | TyparConstraint.CoercesTo(ty2, m2)             -> SolveTypeSubsumesTypeKeepAbbrevs    csenv ndeep m2 trace None ty2 ty
         | TyparConstraint.MayResolveMember(traitInfo, m2) ->
             SolveMemberConstraint csenv false PermitWeakResolution.No ndeep m2 trace traitInfo
@@ -1451,6 +1464,12 @@ and SolveTypeEqualsType (csenv: ConstraintSolverEnv) ndeep m2 (trace: OptionalTr
                 do! SolveTypeEqualsTypeEqns csenv ndeep m2 trace None l1 l2
             }
 
+        | TType_variant (tags1, l1), TType_variant (tags2, l2) ->
+            trackErrors {
+                do! SolvePolyVariantTagsEqual csenv m2 sty1 sty2 tags1 tags2
+                do! SolveTypeEqualsTypeEqns csenv ndeep m2 trace None l1 l2
+            }
+
         | TType_fun (domainTy1, rangeTy1, nullness1), TType_fun (domainTy2, rangeTy2, nullness2) ->
             trackErrors {
                 do! SolveFunTypeEqn csenv ndeep m2 trace None domainTy1 domainTy2 rangeTy1 rangeTy2
@@ -1634,6 +1653,11 @@ and SolveTypeSubsumesType (csenv: ConstraintSolverEnv) ndeep m2 (trace: Optional
         | TType_anon (anonInfo1, l1), TType_anon (anonInfo2, l2) ->
             trackErrors {
                 do! SolveAnonInfoEqualsAnonInfo csenv m2 anonInfo1 anonInfo2
+                do! SolveTypeEqualsTypeEqns csenv ndeep m2 trace cxsln l1 l2
+            }
+        | TType_variant (tags1, l1), TType_variant (tags2, l2) ->
+            trackErrors {
+                do! SolvePolyVariantTagsEqual csenv m2 sty1 sty2 tags1 tags2
                 do! SolveTypeEqualsTypeEqns csenv ndeep m2 trace cxsln l1 l2
             }
         | TType_measure ms1, TType_measure ms2 ->
@@ -2637,6 +2661,17 @@ and EnforceConstraintConsistency (csenv: ConstraintSolverEnv) ndeep m2 trace ret
             do! SolveTypeEqualsTypeKeepAbbrevs csenv ndeep m2 trace argsTy1 argsTy2
             return! SolveTypeEqualsTypeKeepAbbrevs csenv ndeep m2 trace retTy1 retTy2
 
+        // A tag carries the same payload type wherever it is mentioned
+        | TyparConstraint.HasPolymorphicVariantTag (tag1, payloadTy1, _, _), TyparConstraint.HasPolymorphicVariantTag (tag2, payloadTy2, _, m2)
+            when tag1 = tag2 ->
+            return! SolveTypeEqualsTypeKeepAbbrevs csenv ndeep m2 trace payloadTy1 payloadTy2
+
+        // A required tag must be within every upper bound
+        | TyparConstraint.HasPolymorphicVariantTag (tag, _, true, _), TyparConstraint.IsPolymorphicVariantClosed (tags, m2)
+        | TyparConstraint.IsPolymorphicVariantClosed (tags, m2), TyparConstraint.HasPolymorphicVariantTag (tag, _, true, _)
+            when not (List.contains tag tags) ->
+            return! ErrorD (ConstraintSolverError(FSComp.SR.csPolymorphicVariantTagExcluded(RichText.mkText ("`" + tag), RichText.mkText (polyVariantTagsText tags)), m, m2))
+
         | TyparConstraint.SupportsComparison _, TyparConstraint.IsDelegate _
         | TyparConstraint.IsDelegate _, TyparConstraint.SupportsComparison _ ->
             return! ErrorD (Error(FSComp.SR.csComparisonDelegateConstraintInconsistent(), m))
@@ -2707,6 +2742,10 @@ and CheckConstraintImplication (csenv: ConstraintSolverEnv) tpc1 tpc2 =
     | TyparConstraint.IsReferenceType _, TyparConstraint.IsReferenceType _
     | TyparConstraint.RequiresDefaultConstructor _, TyparConstraint.RequiresDefaultConstructor _ -> true
     | TyparConstraint.SimpleChoice (tys1, _), TyparConstraint.SimpleChoice (tys2, _) -> ListSet.isSubsetOf (typeEquiv g) tys1 tys2
+    | TyparConstraint.HasPolymorphicVariantTag (tag1, payloadTy1, isRequired1, _), TyparConstraint.HasPolymorphicVariantTag (tag2, payloadTy2, isRequired2, _) ->
+        tag1 = tag2 && (isRequired1 || not isRequired2) && typeEquiv g payloadTy1 payloadTy2
+    | TyparConstraint.IsPolymorphicVariantClosed (tags1, _), TyparConstraint.IsPolymorphicVariantClosed (tags2, _) ->
+        ListSet.isSubsetOf (=) tags1 tags2
     | TyparConstraint.DefaultsTo (priority1, defaultTy1, _), TyparConstraint.DefaultsTo (priority2, defaultTy2, _) ->
             (priority1 = priority2) && typeEquiv g defaultTy1 defaultTy2
     | _ -> false
@@ -3186,6 +3225,53 @@ and SolveTypeIsUnmanaged (csenv: ConstraintSolverEnv) ndeep m2 trace ty =
                 CompleteD
             else
                 ErrorD (ConstraintSolverError(FSComp.SR.csGenericConstructRequiresUnmanagedType(NicePrint.minimalRichTextOfType denv ty), m, m2))
+
+and SolvePolyVariantTagsEqual (csenv: ConstraintSolverEnv) m2 ty1 ty2 (tags1: string list) tags2 =
+    if tags1 = tags2 then
+        CompleteD
+    else
+        let denv = csenv.DisplayEnv
+        let ty1Text, ty2Text, _cxs = NicePrint.minimalStringsOfTwoTypes denv ty1 ty2
+        ErrorD (ConstraintSolverError(FSComp.SR.csPolymorphicVariantTagsDiffer(RichText.mkText ty1Text, RichText.mkText ty2Text), csenv.m, m2))
+
+and SolveTypeHasPolymorphicVariantTag (csenv: ConstraintSolverEnv) ndeep m2 trace ty tag payloadTy isRequired =
+    let g = csenv.g
+    let m = csenv.m
+    let denv = csenv.DisplayEnv
+    match tryDestTyparTy g ty with
+    | ValueSome destTypar ->
+        AddConstraint csenv ndeep m2 trace destTypar (TyparConstraint.HasPolymorphicVariantTag(tag, payloadTy, isRequired, m))
+    | _ ->
+        match tryDestPolyVariantTy g ty with
+        | ValueSome (tags, tys) ->
+            match List.tryFindIndex ((=) tag) tags with
+            | Some i -> SolveTypeEqualsTypeKeepAbbrevs csenv ndeep m2 trace payloadTy (List.item i tys)
+            // The type does not carry the tag, so whatever the payload type would have been is irrelevant
+            | None when not isRequired -> CompleteD
+            | None ->
+                let tyText = NicePrint.minimalStringOfType denv ty
+                ErrorD (ConstraintSolverError(FSComp.SR.csPolymorphicVariantTagNotInType(RichText.mkText tyText, RichText.mkText ("`" + tag)), m, m2))
+        | ValueNone ->
+            let tyText = NicePrint.minimalStringOfType denv ty
+            ErrorD (ConstraintSolverError(FSComp.SR.csTypeIsNotPolymorphicVariant(RichText.mkText tyText, RichText.mkText ("`" + tag)), m, m2))
+
+and SolveTypeIsPolymorphicVariantClosed (csenv: ConstraintSolverEnv) ndeep m2 trace ty tags =
+    let g = csenv.g
+    let m = csenv.m
+    let denv = csenv.DisplayEnv
+    match tryDestTyparTy g ty with
+    | ValueSome destTypar ->
+        AddConstraint csenv ndeep m2 trace destTypar (TyparConstraint.IsPolymorphicVariantClosed(tags, m))
+    | _ ->
+        match tryDestPolyVariantTy g ty with
+        | ValueSome (tyTags, _) ->
+            match tyTags |> List.tryFind (fun tag -> not (List.contains tag tags)) with
+            | None -> CompleteD
+            | Some tag -> ErrorD (ConstraintSolverError(FSComp.SR.csPolymorphicVariantTagExcluded(RichText.mkText ("`" + tag), RichText.mkText (polyVariantTagsText tags)), m, m2))
+        | ValueNone ->
+            let tyText = NicePrint.minimalStringOfType denv ty
+            let tag = match tags with tag :: _ -> tag | [] -> ""
+            ErrorD (ConstraintSolverError(FSComp.SR.csTypeIsNotPolymorphicVariant(RichText.mkText tyText, RichText.mkText ("`" + tag)), m, m2))
 
 and SolveTypeChoice (csenv: ConstraintSolverEnv) ndeep m2 trace ty choiceTys =
     trackErrors {
@@ -4377,6 +4463,20 @@ let AddCxTypeIsUnmanaged denv css m trace ty =
     PostponeOnFailedMemberConstraintResolution csenv trace
         (fun csenv -> SolveTypeIsUnmanaged csenv 0 m trace ty)
         (fun res -> ErrorD (ErrorFromAddingConstraint(denv, res, m)))
+    |> RaiseOperationResult
+
+let AddCxTypeHasPolymorphicVariantTag denv css m trace ty tag payloadTy isRequired =
+    let csenv = MakeConstraintSolverEnv ContextInfo.NoContext css m denv
+    PostponeOnFailedMemberConstraintResolution csenv trace
+        (fun csenv -> SolveTypeHasPolymorphicVariantTag csenv 0 m trace ty tag payloadTy isRequired)
+        ErrorD
+    |> RaiseOperationResult
+
+let AddCxTypeIsPolymorphicVariantClosed denv css m trace ty tags =
+    let csenv = MakeConstraintSolverEnv ContextInfo.NoContext css m denv
+    PostponeOnFailedMemberConstraintResolution csenv trace
+        (fun csenv -> SolveTypeIsPolymorphicVariantClosed csenv 0 m trace ty tags)
+        ErrorD
     |> RaiseOperationResult
 
 let AddCxTypeIsEnum denv css m trace ty underlying =

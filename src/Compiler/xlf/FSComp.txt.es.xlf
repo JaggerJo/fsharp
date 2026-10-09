@@ -252,6 +252,21 @@
         <target state="translated">El argumento "{0}" no coincide.</target>
         <note />
       </trans-unit>
+      <trans-unit id="csPolymorphicVariantTagExcluded">
+        <source>The tag '{0}' is used here, but this polymorphic variant type allows at most {1}.</source>
+        <target state="new">The tag '{0}' is used here, but this polymorphic variant type allows at most {1}.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="csPolymorphicVariantTagNotInType">
+        <source>The polymorphic variant type '{0}' does not allow the tag '{1}'.</source>
+        <target state="new">The polymorphic variant type '{0}' does not allow the tag '{1}'.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="csPolymorphicVariantTagsDiffer">
+        <source>The polymorphic variant types '{0}' and '{1}' carry different tags.</source>
+        <target state="new">The polymorphic variant types '{0}' and '{1}' carry different tags.</target>
+        <note />
+      </trans-unit>
       <trans-unit id="csTypeHasNullAsExtraValue">
         <source>The type '{0}' supports 'null' but a non-null type is expected</source>
         <target state="new">The type '{0}' supports 'null' but a non-null type is expected</target>
@@ -260,6 +275,11 @@
       <trans-unit id="csTypeHasNullAsTrueValue">
         <source>The type '{0}' uses 'null' as a representation value but a non-null type is expected</source>
         <target state="new">The type '{0}' uses 'null' as a representation value but a non-null type is expected</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="csTypeIsNotPolymorphicVariant">
+        <source>The type '{0}' is not a polymorphic variant type, but it is used with the tag '{1}'.</source>
+        <target state="new">The type '{0}' is not a polymorphic variant type, but it is used with the tag '{1}'.</target>
         <note />
       </trans-unit>
       <trans-unit id="csUnmanagedConstraintInconsistent">
@@ -450,6 +470,11 @@
       <trans-unit id="featureParsedHashDirectiveUnexpectedInteger">
         <source>Unexpected integer literal '{0}'.</source>
         <target state="translated">Literal entero inesperado "{0}".</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="featurePolymorphicVariants">
+        <source>polymorphic variants</source>
+        <target state="new">polymorphic variants</target>
         <note />
       </trans-unit>
       <trans-unit id="featurePreferExtensionMethodOverPlainProperty">
@@ -1605,6 +1630,11 @@
       <trans-unit id="tcPassingWithoutNullTononNullFunction">
         <source>You can remove this `nonNull` assertion.</source>
         <target state="new">You can remove this `nonNull` assertion.</target>
+        <note />
+      </trans-unit>
+      <trans-unit id="tcPolymorphicVariantArgumentMismatch">
+        <source>A polymorphic variant tag takes at most one argument. Use a tuple to carry several values, e.g. '{0} (a, b)'.</source>
+        <target state="new">A polymorphic variant tag takes at most one argument. Use a tuple to carry several values, e.g. '{0} (a, b)'.</target>
         <note />
       </trans-unit>
       <trans-unit id="tcRecordExplicitFieldShadowsSpreadField">

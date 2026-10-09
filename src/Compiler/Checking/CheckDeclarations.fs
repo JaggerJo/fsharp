@@ -4121,6 +4121,7 @@ module EstablishTypeDefinitionCores =
             let rec accInAbbrevType ty acc =
                 match stripTyparEqns ty with
                 | TType_anon (_,l)
+                | TType_variant (_, l)
                 | TType_tuple (_, l) -> accInAbbrevTypes l acc
                 | TType_ucase (UnionCaseRef(tcref2, _), tinst)
                 | TType_app (tcref2, tinst, _) ->
@@ -6158,7 +6159,7 @@ let ApplyDefaults (cenv: cenv) g denvAtEnd m moduleContents extraAttribs =
         unsolved |> List.iter (fun tp ->
             if not tp.IsSolved then
                 let hasSRTPConstraint = tp.Constraints |> List.exists (function TyparConstraint.MayResolveMember _ -> true | _ -> false)
-                if (tp.StaticReq <> TyparStaticReq.None) || hasSRTPConstraint then
+                if (tp.StaticReq <> TyparStaticReq.None) || hasSRTPConstraint || (tryGetPolyVariantRow tp).IsSome then
                     ChooseTyparSolutionAndSolve cenv.css denvAtEnd tp)
     with RecoverableException exn ->
         errorRecovery exn m

@@ -182,7 +182,7 @@ and TypeFeasiblySubsumesTypeWithSupertypeCheck g amap m ndeep ty1 ty2 =
 /// variables when compiling patterns at generalized bindings.
 ///     e.g. let ([], x) = ([], [])
 /// Here x gets a generalized type "list<'T>".
-let ChooseTyparSolutionAndRange (g: TcGlobals) amap (tp:Typar) =
+let private ChooseTyparSolutionAndRangeCore (g: TcGlobals) amap (tp:Typar) =
     let m = tp.Range
     let (maxTy, isRefined), m =
          let initialTy =
@@ -218,6 +218,8 @@ let ChooseTyparSolutionAndRange (g: TcGlobals) amap (tp:Typar) =
              | TyparConstraint.IsUnmanaged m ->
                  errorR(Error(FSComp.SR.typrelCannotResolveAmbiguityInUnmanaged(), m))
                  (maxTy, isRefined), m
+             | TyparConstraint.HasPolymorphicVariantTag(range = m)
+             | TyparConstraint.IsPolymorphicVariantClosed(range = m)
              | TyparConstraint.NotSupportsNull m // NOTE: this doesn't "force" non-nullness, since it is the default choice in 'obj' or 'int'
              | TyparConstraint.SupportsEquality m
              | TyparConstraint.AllowsRefStruct m
@@ -234,6 +236,20 @@ let ChooseTyparSolutionAndRange (g: TcGlobals) amap (tp:Typar) =
     | _ -> ()
 
     maxTy, m
+
+let ChooseTyparSolutionAndRange (g: TcGlobals) amap (tp:Typar) =
+    match tryGetPolyVariantRow tp with
+    | ValueSome row ->
+        // A polymorphic variant type parameter is solved by the exact variant type of its required tags,
+        // or, when nothing is required, of the tags its upper bound allows.
+        let tags =
+            match row.Required, row.Closed with
+            | [], ValueSome closed -> closed
+            | required, _ -> required
+        let payloadOf tag =
+            row.Payloads |> List.tryFind (fun (tag2, _) -> tag2 = tag) |> Option.map snd |> Option.defaultValue g.unit_ty
+        mkPolyVariantTy [ for tag in tags -> tag, payloadOf tag ], tp.Range
+    | ValueNone -> ChooseTyparSolutionAndRangeCore g amap tp
 
 let ChooseTyparSolution g amap tp =
     let ty, m = ChooseTyparSolutionAndRange g amap tp

@@ -94,6 +94,9 @@ module internal XmlDocSignatures =
 
         | TType_anon(anonInfo, tinst) -> sprintf "%s%s" anonInfo.ILTypeRef.FullName (tyargsEnc g (gtpsType, gtpsMethod) tinst)
 
+        // Polymorphic variants erase to Tuple<string, object>
+        | TType_variant _ -> "System.Tuple{System.String,System.Object}"
+
         | TType_tuple(tupInfo, tys) ->
             if evalTupInfoIsStruct tupInfo then
                 sprintf "System.ValueTuple%s" (tyargsEnc g (gtpsType, gtpsMethod) tys)
@@ -453,7 +456,8 @@ module internal NullnessAnalysis =
                     let inner = tupTypes |> List.collect (fun t -> hasWithNullAnyWhere t false)
                     if alreadyWrappedInOuterWithNull then ty :: inner else inner
 
-                | TType_anon(tys = tys) ->
+                | TType_anon(tys = tys)
+                | TType_variant(payloadTys = tys) ->
                     let inner = tys |> List.collect (fun t -> hasWithNullAnyWhere t false)
                     if alreadyWrappedInOuterWithNull then ty :: inner else inner
                 | TType_fun(d, r, _) -> (hasWithNullAnyWhere d false) @ (hasWithNullAnyWhere r false)
@@ -587,6 +591,10 @@ module internal TypeTestsAndPatterns =
             match tryDestAnonRecdTy g ty with
             | ValueNone -> ValueSome []
             | ValueSome(_anonInfo, elemTys) -> ValueSome elemTys
+        elif isPolyVariantTy g ty then
+            match tryDestPolyVariantTy g ty with
+            | ValueSome(struct (_tags, payloadTys)) -> ValueSome payloadTys
+            | ValueNone -> ValueSome []
         else
             match tryAppTy g ty with
             | ValueSome(tcref, tinst) ->

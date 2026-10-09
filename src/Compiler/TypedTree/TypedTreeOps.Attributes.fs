@@ -1620,6 +1620,12 @@ module internal DebugPrint =
                     (List.map2 (fun nm ty -> wordL (tagField nm) --- auxTypeAtomL env ty) (Array.toList anonInfo.SortedNames) tys)
             )
 
+        | TType_variant(tags, tys) ->
+            let tagL tag ty =
+                wordL (tagText ("`" + tag)) ^^ wordL (tagText "of") ^^ auxTypeL env ty
+
+            squareBracketL (sepListL (wordL (tagText "|")) (List.map2 tagL tags tys))
+
         | TType_measure unt ->
 #if DEBUG
             leftL (tagText "{")
@@ -1755,6 +1761,13 @@ module internal DebugPrint =
         | TyparConstraint.AllowsRefStruct _ -> wordL (tagText "allows ref struct") |> constraintPrefix
         | TyparConstraint.SimpleChoice(tys, _) ->
             bracketL (sepListL (sepL (tagText "|")) (List.map (auxTypeL env) tys))
+            |> constraintPrefix
+        | TyparConstraint.HasPolymorphicVariantTag(tag, payloadTy, isRequired, _) ->
+            wordL (tagText ((if isRequired then "has `" else "may have `") + tag + " of"))
+            ^^ auxTypeL env payloadTy
+            |> constraintPrefix
+        | TyparConstraint.IsPolymorphicVariantClosed(tags, _) ->
+            wordL (tagText ("at most " + String.concat " | " (List.map (fun tag -> "`" + tag) tags)))
             |> constraintPrefix
         | TyparConstraint.RequiresDefaultConstructor _ ->
             bracketL (wordL (tagText "new : unit -> ") ^^ (auxTypar2L env tp))

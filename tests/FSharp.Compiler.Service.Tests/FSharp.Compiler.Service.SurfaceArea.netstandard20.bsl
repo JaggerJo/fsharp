@@ -7554,6 +7554,10 @@ FSharp.Compiler.Syntax.SynExpr+Paren: FSharp.Compiler.Text.Range leftParenRange
 FSharp.Compiler.Syntax.SynExpr+Paren: FSharp.Compiler.Text.Range range
 FSharp.Compiler.Syntax.SynExpr+Paren: Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Text.Range] get_rightParenRange()
 FSharp.Compiler.Syntax.SynExpr+Paren: Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Text.Range] rightParenRange
+FSharp.Compiler.Syntax.SynExpr+PolymorphicVariant: FSharp.Compiler.Syntax.Ident get_tag()
+FSharp.Compiler.Syntax.SynExpr+PolymorphicVariant: FSharp.Compiler.Syntax.Ident tag
+FSharp.Compiler.Syntax.SynExpr+PolymorphicVariant: FSharp.Compiler.Text.Range get_range()
+FSharp.Compiler.Syntax.SynExpr+PolymorphicVariant: FSharp.Compiler.Text.Range range
 FSharp.Compiler.Syntax.SynExpr+Quote: Boolean get_isFromQueryExpression()
 FSharp.Compiler.Syntax.SynExpr+Quote: Boolean get_isRaw()
 FSharp.Compiler.Syntax.SynExpr+Quote: Boolean isFromQueryExpression
@@ -7651,6 +7655,7 @@ FSharp.Compiler.Syntax.SynExpr+Tags: Int32 New
 FSharp.Compiler.Syntax.SynExpr+Tags: Int32 Null
 FSharp.Compiler.Syntax.SynExpr+Tags: Int32 ObjExpr
 FSharp.Compiler.Syntax.SynExpr+Tags: Int32 Paren
+FSharp.Compiler.Syntax.SynExpr+Tags: Int32 PolymorphicVariant
 FSharp.Compiler.Syntax.SynExpr+Tags: Int32 Quote
 FSharp.Compiler.Syntax.SynExpr+Tags: Int32 Record
 FSharp.Compiler.Syntax.SynExpr+Tags: Int32 Sequential
@@ -7829,6 +7834,7 @@ FSharp.Compiler.Syntax.SynExpr: Boolean IsNew
 FSharp.Compiler.Syntax.SynExpr: Boolean IsNull
 FSharp.Compiler.Syntax.SynExpr: Boolean IsObjExpr
 FSharp.Compiler.Syntax.SynExpr: Boolean IsParen
+FSharp.Compiler.Syntax.SynExpr: Boolean IsPolymorphicVariant
 FSharp.Compiler.Syntax.SynExpr: Boolean IsQuote
 FSharp.Compiler.Syntax.SynExpr: Boolean IsRecord
 FSharp.Compiler.Syntax.SynExpr: Boolean IsSequential
@@ -7899,6 +7905,7 @@ FSharp.Compiler.Syntax.SynExpr: Boolean get_IsNew()
 FSharp.Compiler.Syntax.SynExpr: Boolean get_IsNull()
 FSharp.Compiler.Syntax.SynExpr: Boolean get_IsObjExpr()
 FSharp.Compiler.Syntax.SynExpr: Boolean get_IsParen()
+FSharp.Compiler.Syntax.SynExpr: Boolean get_IsPolymorphicVariant()
 FSharp.Compiler.Syntax.SynExpr: Boolean get_IsQuote()
 FSharp.Compiler.Syntax.SynExpr: Boolean get_IsRecord()
 FSharp.Compiler.Syntax.SynExpr: Boolean get_IsSequential()
@@ -7968,6 +7975,7 @@ FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr NewNew(Boolean, F
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr NewNull(FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr NewObjExpr(FSharp.Compiler.Syntax.SynType, Microsoft.FSharp.Core.FSharpOption`1[System.Tuple`2[FSharp.Compiler.Syntax.SynExpr,Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.Ident]]], Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Text.Range], Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynBinding], Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynMemberDefn], Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynInterfaceImpl], FSharp.Compiler.Text.Range, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr NewParen(FSharp.Compiler.Syntax.SynExpr, FSharp.Compiler.Text.Range, Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Text.Range], FSharp.Compiler.Text.Range)
+FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr NewPolymorphicVariant(FSharp.Compiler.Syntax.Ident, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr NewQuote(FSharp.Compiler.Syntax.SynExpr, Boolean, FSharp.Compiler.Syntax.SynExpr, Boolean, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr NewRecord(Microsoft.FSharp.Core.FSharpOption`1[System.Tuple`5[FSharp.Compiler.Syntax.SynType,FSharp.Compiler.Syntax.SynExpr,FSharp.Compiler.Text.Range,Microsoft.FSharp.Core.FSharpOption`1[System.Tuple`2[FSharp.Compiler.Text.Range,Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Text.Position]]],FSharp.Compiler.Text.Range]], Microsoft.FSharp.Core.FSharpOption`1[System.Tuple`2[FSharp.Compiler.Syntax.SynExpr,System.Tuple`2[FSharp.Compiler.Text.Range,Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Text.Position]]]], Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynExprRecordFieldOrSpread], FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr NewSequential(FSharp.Compiler.Syntax.DebugPointAtSequential, Boolean, FSharp.Compiler.Syntax.SynExpr, FSharp.Compiler.Syntax.SynExpr, FSharp.Compiler.Text.Range, FSharp.Compiler.SyntaxTrivia.SynExprSequentialTrivia)
@@ -8037,6 +8045,7 @@ FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr+New
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr+Null
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr+ObjExpr
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr+Paren
+FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr+PolymorphicVariant
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr+Quote
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr+Record
 FSharp.Compiler.Syntax.SynExpr: FSharp.Compiler.Syntax.SynExpr+Sequential
@@ -9091,6 +9100,12 @@ FSharp.Compiler.Syntax.SynPat+Paren: FSharp.Compiler.Syntax.SynPat get_pat()
 FSharp.Compiler.Syntax.SynPat+Paren: FSharp.Compiler.Syntax.SynPat pat
 FSharp.Compiler.Syntax.SynPat+Paren: FSharp.Compiler.Text.Range get_range()
 FSharp.Compiler.Syntax.SynPat+Paren: FSharp.Compiler.Text.Range range
+FSharp.Compiler.Syntax.SynPat+PolymorphicVariant: FSharp.Compiler.Syntax.Ident get_tag()
+FSharp.Compiler.Syntax.SynPat+PolymorphicVariant: FSharp.Compiler.Syntax.Ident tag
+FSharp.Compiler.Syntax.SynPat+PolymorphicVariant: FSharp.Compiler.Text.Range get_range()
+FSharp.Compiler.Syntax.SynPat+PolymorphicVariant: FSharp.Compiler.Text.Range range
+FSharp.Compiler.Syntax.SynPat+PolymorphicVariant: Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynPat] argPat
+FSharp.Compiler.Syntax.SynPat+PolymorphicVariant: Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynPat] get_argPat()
 FSharp.Compiler.Syntax.SynPat+QuoteExpr: FSharp.Compiler.Syntax.SynExpr expr
 FSharp.Compiler.Syntax.SynPat+QuoteExpr: FSharp.Compiler.Syntax.SynExpr get_expr()
 FSharp.Compiler.Syntax.SynPat+QuoteExpr: FSharp.Compiler.Text.Range get_range()
@@ -9114,6 +9129,7 @@ FSharp.Compiler.Syntax.SynPat+Tags: Int32 Null
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 OptionalVal
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 Or
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 Paren
+FSharp.Compiler.Syntax.SynPat+Tags: Int32 PolymorphicVariant
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 QuoteExpr
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 Record
 FSharp.Compiler.Syntax.SynPat+Tags: Int32 Tuple
@@ -9150,6 +9166,7 @@ FSharp.Compiler.Syntax.SynPat: Boolean IsNull
 FSharp.Compiler.Syntax.SynPat: Boolean IsOptionalVal
 FSharp.Compiler.Syntax.SynPat: Boolean IsOr
 FSharp.Compiler.Syntax.SynPat: Boolean IsParen
+FSharp.Compiler.Syntax.SynPat: Boolean IsPolymorphicVariant
 FSharp.Compiler.Syntax.SynPat: Boolean IsQuoteExpr
 FSharp.Compiler.Syntax.SynPat: Boolean IsRecord
 FSharp.Compiler.Syntax.SynPat: Boolean IsTuple
@@ -9170,6 +9187,7 @@ FSharp.Compiler.Syntax.SynPat: Boolean get_IsNull()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsOptionalVal()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsOr()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsParen()
+FSharp.Compiler.Syntax.SynPat: Boolean get_IsPolymorphicVariant()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsQuoteExpr()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsRecord()
 FSharp.Compiler.Syntax.SynPat: Boolean get_IsTuple()
@@ -9190,6 +9208,7 @@ FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewNull(FSharp.Comp
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewOptionalVal(FSharp.Compiler.Syntax.Ident, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewOr(FSharp.Compiler.Syntax.SynPat, FSharp.Compiler.Syntax.SynPat, FSharp.Compiler.Text.Range, FSharp.Compiler.SyntaxTrivia.SynPatOrTrivia)
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewParen(FSharp.Compiler.Syntax.SynPat, FSharp.Compiler.Text.Range)
+FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewPolymorphicVariant(FSharp.Compiler.Syntax.Ident, Microsoft.FSharp.Core.FSharpOption`1[FSharp.Compiler.Syntax.SynPat], FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewQuoteExpr(FSharp.Compiler.Syntax.SynExpr, FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewRecord(Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.NamePatPairField], FSharp.Compiler.Text.Range)
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat NewTuple(Boolean, Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Syntax.SynPat], Microsoft.FSharp.Collections.FSharpList`1[FSharp.Compiler.Text.Range], FSharp.Compiler.Text.Range)
@@ -9210,6 +9229,7 @@ FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+Null
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+OptionalVal
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+Or
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+Paren
+FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+PolymorphicVariant
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+QuoteExpr
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+Record
 FSharp.Compiler.Syntax.SynPat: FSharp.Compiler.Syntax.SynPat+Tags

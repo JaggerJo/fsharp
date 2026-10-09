@@ -34,6 +34,7 @@ module XmlDocParsing =
         | SynPat.Ands _ // no one uses ands in fun decls
         | SynPat.ArrayOrList _ // no one uses this in fun decls
         | SynPat.Record _ // no one uses this in fun decls
+        | SynPat.PolymorphicVariant _
         | SynPat.Null _
         | SynPat.Const _
         | SynPat.Wild _

@@ -1207,6 +1207,7 @@ type Exception with
             let tokenIdToText tid =
                 match tid with
                 | Parser.TOKEN_IDENT -> SR.GetString("Parser.TOKEN.IDENT")
+                | Parser.TOKEN_POLYVARIANT_TAG -> SR.GetString("Parser.TOKEN.POLYVARIANT.TAG")
                 | Parser.TOKEN_BIGNUM
                 | Parser.TOKEN_INT8
                 | Parser.TOKEN_UINT8

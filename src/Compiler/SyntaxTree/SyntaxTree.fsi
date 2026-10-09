@@ -878,6 +878,11 @@ type SynExpr =
     /// F# syntax: null
     | Null of range: range
 
+    /// F# syntax: `Tag
+    ///
+    /// A polymorphic variant tag. A payload is supplied by ordinary application: `Tag expr
+    | PolymorphicVariant of tag: Ident * range: range
+
     /// F# syntax: &expr, &&expr
     | AddressOf of isByref: bool * expr: SynExpr * opRange: range * range: range
 
@@ -1194,6 +1199,9 @@ type SynPat =
 
     /// The 'null' pattern
     | Null of range: range
+
+    /// A polymorphic variant tag pattern: `Tag or `Tag pat
+    | PolymorphicVariant of tag: Ident * argPat: SynPat option * range: range
 
     /// '?id' -- for optional argument names
     | OptionalVal of ident: Ident * range: range

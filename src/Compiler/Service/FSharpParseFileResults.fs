@@ -527,6 +527,7 @@ type FSharpParseFileResults(diagnostics: FSharpDiagnostic[], input: ParsedInput,
                         | SynExpr.LongIdent _
                         | SynExpr.LibraryOnlyILAssembly _
                         | SynExpr.LibraryOnlyStaticOptimization _
+                        | SynExpr.PolymorphicVariant _
                         | SynExpr.Null _
                         | SynExpr.Typar _
                         | SynExpr.Ident _

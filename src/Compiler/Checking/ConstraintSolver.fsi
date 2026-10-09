@@ -361,6 +361,22 @@ val AddCxTypeIsUnmanaged: DisplayEnv -> ConstraintSolverState -> range -> Option
 
 val AddCxTypeIsEnum: DisplayEnv -> ConstraintSolverState -> range -> OptionalTrace -> TType -> TType -> unit
 
+/// Constrain a type to be a polymorphic variant type which carries the given tag, either possibly or necessarily
+val AddCxTypeHasPolymorphicVariantTag:
+    DisplayEnv ->
+    ConstraintSolverState ->
+    range ->
+    OptionalTrace ->
+    TType ->
+    tag: string ->
+    payloadTy: TType ->
+    isRequired: bool ->
+        unit
+
+/// Constrain a type to be a polymorphic variant type carrying at most the given tags
+val AddCxTypeIsPolymorphicVariantClosed:
+    DisplayEnv -> ConstraintSolverState -> range -> OptionalTrace -> TType -> tags: string list -> unit
+
 val AddCxTypeIsDelegate:
     DisplayEnv -> ConstraintSolverState -> range -> OptionalTrace -> TType -> TType -> TType -> unit
 

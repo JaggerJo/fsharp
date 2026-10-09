@@ -733,6 +733,9 @@ rule token (args: LexArgs) (skip: bool) = parse
      { errorR(Error(FSComp.SR.lexInvalidIdentifier(), lexbuf.LexemeRange))
        Keywords.IdentifierToken args lexbuf (lexemeTrimLeft lexbuf 2) }
 
+ | '`' ident
+     { POLYVARIANT_TAG (lexemeTrimLeft lexbuf 1) }
+
  | "````" | "```" | "``" | "`"
      { errorR(Error(FSComp.SR.lexInvalidIdentifier(), lexbuf.LexemeRange))
        Keywords.IdentifierToken args lexbuf "" }

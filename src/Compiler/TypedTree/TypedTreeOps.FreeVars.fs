@@ -268,6 +268,8 @@ module internal FreeTypeVars =
         | TyparConstraint.MayResolveMember(traitInfo, _) -> accFreeInTrait opts traitInfo acc
         | TyparConstraint.DefaultsTo(_, defaultTy, _) -> accFreeInType opts defaultTy acc
         | TyparConstraint.SimpleChoice(tys, _) -> accFreeInTypes opts tys acc
+        | TyparConstraint.HasPolymorphicVariantTag(payloadTy = payloadTy) -> accFreeInType opts payloadTy acc
+        | TyparConstraint.IsPolymorphicVariantClosed _ -> acc
         | TyparConstraint.IsEnum(underlyingTy, _) -> accFreeInType opts underlyingTy acc
         | TyparConstraint.IsDelegate(argTys, retTy, _) -> accFreeInType opts argTys (accFreeInType opts retTy acc)
         | TyparConstraint.SupportsComparison _
@@ -333,6 +335,8 @@ module internal FreeTypeVars =
         | TType_tuple(tupInfo, l) -> accFreeInTypes opts l (accFreeInTupInfo opts tupInfo acc)
 
         | TType_anon(anonInfo, l) -> accFreeInTypes opts l (accFreeInTupInfo opts anonInfo.TupInfo acc)
+
+        | TType_variant(_, l) -> accFreeInTypes opts l acc
 
         | TType_app(tcref, tinst, _) ->
             let acc = accFreeTycon opts tcref acc
@@ -414,6 +418,8 @@ module internal FreeTypeVars =
         | TyparConstraint.MayResolveMember(traitInfo, _) -> accFreeInTraitLeftToRight g cxFlag thruFlag acc traitInfo
         | TyparConstraint.DefaultsTo(_, defaultTy, _) -> accFreeInTypeLeftToRight g cxFlag thruFlag acc defaultTy
         | TyparConstraint.SimpleChoice(tys, _) -> accFreeInTypesLeftToRight g cxFlag thruFlag acc tys
+        | TyparConstraint.HasPolymorphicVariantTag(payloadTy = payloadTy) -> accFreeInTypeLeftToRight g cxFlag thruFlag acc payloadTy
+        | TyparConstraint.IsPolymorphicVariantClosed _ -> acc
         | TyparConstraint.IsEnum(underlyingTy, _) -> accFreeInTypeLeftToRight g cxFlag thruFlag acc underlyingTy
         | TyparConstraint.IsDelegate(argTys, retTy, _) ->
             accFreeInTypeLeftToRight g cxFlag thruFlag (accFreeInTypeLeftToRight g cxFlag thruFlag acc argTys) retTy
@@ -453,6 +459,8 @@ module internal FreeTypeVars =
         | TType_tuple(tupInfo, tupTys) ->
             let acc = accFreeInTupInfoLeftToRight g cxFlag thruFlag acc tupInfo
             accFreeInTypesLeftToRight g cxFlag thruFlag acc tupTys
+
+        | TType_variant(_, payloadTys) -> accFreeInTypesLeftToRight g cxFlag thruFlag acc payloadTys
 
         | TType_app(_, tinst, _) -> accFreeInTypesLeftToRight g cxFlag thruFlag acc tinst
 
@@ -895,6 +903,7 @@ module internal MemberRepresentation =
                     | Some solutionType -> getTyparName solutionType
             | TType_fun(domainType, rangeType, _) -> [ yield! getTyparName domainType; yield! getTyparName rangeType ]
             | TType_anon(tys = ti)
+            | TType_variant(payloadTys = ti)
             | TType_app(typeInstantiation = ti)
             | TType_tuple(elementTypes = ti) -> List.collect getTyparName ti
             | _ -> []
@@ -1132,6 +1141,7 @@ module internal MemberRepresentation =
             | TType_app(_, tys, _)
             | TType_ucase(_, tys)
             | TType_anon(_, tys)
+            | TType_variant(_, tys)
             | TType_tuple(_, tys) -> List.fold (foldTypeButNotConstraints normalizeType f) z tys
 
             | TType_fun(domainTy, rangeTy, _) ->

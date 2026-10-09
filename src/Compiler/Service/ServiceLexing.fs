@@ -173,6 +173,7 @@ module internal TokenClassifications =
     let tokenInfo token =
         match token with
         | HASH_IDENT s
+        | POLYVARIANT_TAG s
         | IDENT s ->
             if s.Length > 0 && Char.ToUpperInvariant s[0] = s[0] then
                 (FSharpTokenColorKind.UpperIdentifier, FSharpTokenCharKind.Identifier, FSharpTokenTriggerClass.None)

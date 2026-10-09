@@ -401,8 +401,8 @@ let rec GetNullnessFromTType (g: TcGlobals) ty =
                 if tyconRefEq g g.system_Nullable_tcref tcref then
                     // Nullable value type: the representation of the type argument only
                     ()
+                // Generic value type: 0, followed by the representation of the type arguments in order including containing types
                 else if isValueType then
-                    // Generic value type: 0, followed by the representation of the type arguments in order including containing types
                     yield NullnessInfo.AmbivalentToNull
                 else if IsUnionTypeWithNullAsTrueValue g tcref.Deref || TypeHasAllowNull tcref g range0 then
                     yield NullnessInfo.WithNull
@@ -432,6 +432,8 @@ let rec GetNullnessFromTType (g: TcGlobals) ty =
             for t in elementTypes do
                 yield! GetNullnessFromTType g t
         ]
+
+    | TType_variant _ -> GetNullnessFromTType g (polyVariantReprTy g)
 
     | TType_anon(anonInfo, tys) ->
         // It is unlikely for an anon type to be used from C# due to the mangled name, but can still carry the nullability info about it's generic type arguments == the types of the fields

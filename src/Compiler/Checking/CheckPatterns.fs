@@ -369,6 +369,9 @@ and TcPat warnOnUpper (cenv: cenv) env valReprInfo vFlags (patEnv: TcPatLinearEn
     | SynPat.Record (flds, m) ->
         TcRecordPat warnOnUpper cenv env vFlags patEnv ty flds m
 
+    | SynPat.PolymorphicVariant (tag, argPatOpt, m) ->
+        TcPatPolymorphicVariant warnOnUpper cenv env vFlags patEnv ty tag argPatOpt m
+
     | SynPat.Null m ->
         TcNullPat cenv env patEnv ty m
 
@@ -378,6 +381,18 @@ and TcPat warnOnUpper (cenv: cenv) env valReprInfo vFlags (patEnv: TcPatLinearEn
 
     | SynPat.FromParseError (pat, _) ->
         suppressErrorReporting (fun () -> TcPatAndRecover warnOnUpper cenv env valReprInfo vFlags patEnv (NewErrorType()) pat)
+
+/// `Tag pat - match the tag, then the payload against pat. Whether the type is open or closed is decided for the whole match.
+and TcPatPolymorphicVariant warnOnUpper cenv env vFlags patEnv ty (tag: Ident) argPatOpt m =
+    let g = cenv.g
+    checkLanguageFeatureAndRecover g.langVersion LanguageFeature.PolymorphicVariants m
+    let payloadTy = NewInferenceType g
+    AddCxTypeHasPolymorphicVariantTag env.DisplayEnv cenv.css m NoTrace ty tag.idText payloadTy false
+    let argPat = defaultArg argPatOpt (SynPat.Const (SynConst.Unit, tag.idRange))
+    let argPatPhase2, TcPatLinearEnv(tpenv, names, takenNames, _) = TcPat warnOnUpper cenv env None vFlags patEnv payloadTy argPat
+    // Tag patterns compile to active patterns, which cannot match generalized values
+    let patEnvR = TcPatLinearEnv(tpenv, names, takenNames, true)
+    (fun values -> mkPolyVariantTagPattern g m ty tag.idText payloadTy (argPatPhase2 values)), patEnvR
 
 and TcConstPat warnOnUpper cenv env vFlags patEnv ty synConst m =
     let g = cenv.g

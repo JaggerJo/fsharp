@@ -942,6 +942,7 @@ let rec synExprContainsError inpExpr =
         | SynExpr.Quote _
         | SynExpr.LibraryOnlyILAssembly _
         | SynExpr.LibraryOnlyStaticOptimization _
+        | SynExpr.PolymorphicVariant _
         | SynExpr.Null _
         | SynExpr.Ident _
         | SynExpr.Typar _

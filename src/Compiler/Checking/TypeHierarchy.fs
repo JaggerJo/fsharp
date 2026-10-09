@@ -282,6 +282,8 @@ let FoldHierarchyOfTypeAux followInterfaces allowMultiIntfInst skipUnref visitor
                           | TyparConstraint.AllowsRefStruct _
                           | TyparConstraint.IsReferenceType _
                           | TyparConstraint.SimpleChoice _
+                          | TyparConstraint.HasPolymorphicVariantTag _
+                          | TyparConstraint.IsPolymorphicVariantClosed _
                           | TyparConstraint.RequiresDefaultConstructor _ -> vacc
                           | TyparConstraint.CoercesTo(cty, _) ->
                                   loop (ndeep + 1)  cty vacc)
@@ -438,6 +440,10 @@ let CopyTyparConstraints (traitCtxt: ITraitContext option) m tprefInst (tporig: 
                TyparConstraint.IsReferenceType m
            | TyparConstraint.SimpleChoice (tys, _) ->
                TyparConstraint.SimpleChoice (List.map (instType tprefInst) tys, m)
+           | TyparConstraint.HasPolymorphicVariantTag (tag, payloadTy, isRequired, _) ->
+               TyparConstraint.HasPolymorphicVariantTag (tag, instType tprefInst payloadTy, isRequired, m)
+           | TyparConstraint.IsPolymorphicVariantClosed (tags, _) ->
+               TyparConstraint.IsPolymorphicVariantClosed (tags, m)
            | TyparConstraint.RequiresDefaultConstructor _ ->
                TyparConstraint.RequiresDefaultConstructor m
            | TyparConstraint.MayResolveMember(traitInfo, _) ->

@@ -2339,6 +2339,15 @@ let p_tyar_constraint x st =
     | TyparConstraint.SupportsComparison _ -> p_byte 10 st
     | TyparConstraint.SupportsEquality _ -> p_byte 11 st
     | TyparConstraint.IsUnmanaged _ -> p_byte 12 st
+    // Experimental: polymorphic variant constraints are not readable by compilers that predate them
+    | TyparConstraint.HasPolymorphicVariantTag(tag, payloadTy, isRequired, _) ->
+        p_byte 13 st
+        p_string tag st
+        p_ty payloadTy st
+        p_bool isRequired st
+    | TyparConstraint.IsPolymorphicVariantClosed(tags, _) ->
+        p_byte 14 st
+        p_strings tags st
 
     | TyparConstraint.NotSupportsNull _
     | TyparConstraint.AllowsRefStruct _ -> failwith $"%A{x} constraints should only be emitted to streamB"
@@ -2381,6 +2390,10 @@ let u_tyar_constraint st =
     | 10 -> (fun _ -> TyparConstraint.SupportsComparison range0)
     | 11 -> (fun _ -> TyparConstraint.SupportsEquality range0)
     | 12 -> (fun _ -> TyparConstraint.IsUnmanaged range0)
+    | 13 ->
+        u_tup3 u_string u_ty u_bool st
+        |> (fun (tag, payloadTy, isRequired) _ -> TyparConstraint.HasPolymorphicVariantTag(tag, payloadTy, isRequired, range0))
+    | 14 -> u_strings st |> (fun tags _ -> TyparConstraint.IsPolymorphicVariantClosed(tags, range0))
     | _ -> ufailwith st "u_tyar_constraint"
 
 // Some extra F#9+ constraints are stored in stream B, these will be ignored by earlier F# compilers
@@ -2525,6 +2538,11 @@ let _ =
         | TType_anon(anonInfo, l) ->
             p_byte 9 st
             p_anonInfo anonInfo st
+            p_tys l st
+
+        | TType_variant(tags, l) ->
+            p_byte 10 st
+            p_strings tags st
             p_tys l st)
 
 let _ =
@@ -2609,6 +2627,11 @@ let _ =
             let anonInfo = u_anonInfo st
             let l = u_tys st
             TType_anon(anonInfo, l)
+
+        | 10 ->
+            let tags = u_strings st
+            let l = u_tys st
+            TType_variant(tags, l)
 
         | _ -> ufailwith st "u_typ")
 

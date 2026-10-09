@@ -180,6 +180,13 @@ module rec HashTypes =
         | TyparConstraint.RequiresDefaultConstructor _ -> tpHash @@ 13
         | TyparConstraint.NotSupportsNull _ -> tpHash @@ 14
         | TyparConstraint.AllowsRefStruct _ -> tpHash @@ 15
+        | TyparConstraint.HasPolymorphicVariantTag(tag, payloadTy, isRequired, _) ->
+            tpHash
+            @@ 16
+            @@ hashText tag
+            @@ hashTType g payloadTy
+            @@ (if isRequired then 1 else 0)
+        | TyparConstraint.IsPolymorphicVariantClosed(tags, _) -> tpHash @@ 17 @@ (tags |> hashListOrderIndependent hashText)
 
     /// Hash type parameter constraints
     let private hashConstraints (g: TcGlobals) cxs =
@@ -229,6 +236,10 @@ module rec HashTypes =
             |> hashListOrderMatters (hashTType g)
             |> pipeToHash (anonInfo.SortedNames |> hashListOrderMatters hashText)
             |> addFullStructuralHash (evalAnonInfoIsStruct anonInfo)
+        | TType_variant(tags, tys) ->
+            tys
+            |> hashListOrderMatters (hashTType g)
+            |> pipeToHash (tags |> hashListOrderMatters hashText)
         | TType_tuple(tupInfo, t) ->
             t
             |> hashListOrderMatters (hashTType g)
@@ -545,6 +556,14 @@ module StructuralUtilities =
 
             | TType_anon(info, tys) ->
                 emitStamp ctx info.Stamp
+
+                for arg in tys do
+                    emitTType ctx arg
+
+            | TType_variant(tags, tys) ->
+                for tag in tags do
+                    if out.Count < MaxTokenCount then
+                        out.Add(TypeToken.UCase(int (hashText tag)))
 
                 for arg in tys do
                     emitTType ctx arg

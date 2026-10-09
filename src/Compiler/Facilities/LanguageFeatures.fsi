@@ -60,6 +60,7 @@ type LanguageFeature =
     | ErrorOnBitwiseOpsOnNonIntegralEnums
     | OptimizeClosureIfNotInlined
     | ReraiseInComputationExpressions
+    | PolymorphicVariants
 
 /// LanguageVersion management
 type LanguageVersion =

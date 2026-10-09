@@ -871,6 +871,21 @@ module PrintTypes =
         | TyparConstraint.SimpleChoice(tys, _) ->
             [bracketL (sepListL (sepL bar) (List.map (layoutTypeWithInfo denv env) tys)) |> longConstraintPrefix]
 
+        // All the polymorphic variant constraints of a type parameter are shown together as one row, at the first of them
+        | TyparConstraint.HasPolymorphicVariantTag _
+        | TyparConstraint.IsPolymorphicVariantClosed _ ->
+            let isFirst =
+                tp.Constraints
+                |> List.tryFind (function
+                    | TyparConstraint.HasPolymorphicVariantTag _
+                    | TyparConstraint.IsPolymorphicVariantClosed _ -> true
+                    | _ -> false)
+                |> Option.exists (fun cx -> obj.ReferenceEquals(cx, tpc))
+
+            match tryGetPolyVariantRow tp with
+            | ValueSome row when isFirst -> [layoutPolyVariantRow denv env row |> longConstraintPrefix]
+            | _ -> []
+
         | TyparConstraint.RequiresDefaultConstructor _ ->
             if denv.shortConstraints then
                 [wordL (tagKeyword "default") ^^ wordL (tagKeyword "constructor")]
@@ -880,6 +895,25 @@ module PrintTypes =
                     WordL.structUnit ^^
                     WordL.arrow ^^
                     (layoutTyparRefWithInfo denv env tp)) |> longConstraintPrefix]
+
+    and layoutPolyVariantTag denv env tag payloadTy =
+        let tagL = wordL (tagUnionCase ("`" + tag))
+        match payloadTy with
+        | ValueSome payloadTy when not (isUnitTy denv.g payloadTy) ->
+            tagL ^^ wordL (tagKeyword "of") ^^ layoutTypeWithInfoAndPrec denv env 3 payloadTy
+        | _ -> tagL
+
+    /// Layout a polymorphic variant row: [> `A ], [< `A | `B ] or [< `A | `B > `A ]
+    and layoutPolyVariantRow denv env (row: PolyVariantRow) =
+        let payloadOf tag = row.Payloads |> List.tryFind (fun (tag2, _) -> tag2 = tag) |> Option.map snd |> ValueOption.ofOption
+        let tagsL tags = sepListL (wordL (tagPunctuation "|")) (tags |> List.map (fun tag -> layoutPolyVariantTag denv env tag (payloadOf tag)))
+        let tagNamesL tags = sepListL (wordL (tagPunctuation "|")) (tags |> List.map (fun tag -> wordL (tagUnionCase ("`" + tag))))
+        let bracketsL openTok l = wordL (tagPunctuation openTok) ^^ l ^^ wordL (tagPunctuation "]")
+        match row.Closed with
+        | ValueNone -> bracketsL "[>" (tagsL row.Required)
+        | ValueSome closed when row.Required.IsEmpty -> bracketsL "[<" (tagsL closed)
+        | ValueSome closed when row.Required = closed -> bracketsL "[" (tagsL closed)
+        | ValueSome closed -> bracketsL "[<" (tagsL closed ^^ wordL (tagPunctuation ">") ^^ tagNamesL row.Required)
 
     and layoutTraitWithInfo denv env traitInfo =
         let g = denv.g
@@ -1035,6 +1069,11 @@ module PrintTypes =
                 WordL.keywordStruct --- braceBarL core
             else
                 braceBarL core
+
+        // Layout an exact polymorphic variant type
+        | TType_variant (tags, tys) ->
+            let tagsL = List.map2 (fun tag ty -> layoutPolyVariantTag denv env tag (ValueSome ty)) tags tys
+            wordL (tagPunctuation "[") ^^ sepListL (wordL (tagPunctuation "|")) tagsL ^^ wordL (tagPunctuation "]")
 
         // Layout a tuple type
         | TType_tuple (tupInfo, t) ->

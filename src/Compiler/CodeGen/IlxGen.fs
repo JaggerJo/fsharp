@@ -710,6 +710,8 @@ and GenTypeAux cenv m (tyenv: TypeReprEnv) voidOK ptrsOK ty =
 
     | TType_tuple(tupInfo, args) -> GenTypeAux cenv m tyenv VoidNotOK ptrsOK (mkCompiledTupleTy g (evalTupInfoIsStruct tupInfo) args)
 
+    | TType_variant _ -> GenTypeAux cenv m tyenv VoidNotOK ptrsOK (polyVariantReprTy g)
+
     | TType_fun(dty, returnTy, _) ->
         EraseClosures.mkILFuncTy cenv.ilxPubCloEnv (GenTypeArgAux cenv m tyenv dty) (GenTypeArgAux cenv m tyenv returnTy)
 

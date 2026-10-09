@@ -483,3 +483,299 @@ let TransformObjExprForStructByrefCaptures
     localBindings
     |> List.foldBack (fun (_, local, valueExpr) body -> mkLet DebugPointAtBinding.NoneAtInvisible mWholeExpr local valueExpr body)
     <| objExpr
+
+//-------------------------------------------------------------------------
+// Polymorphic variants (experimental)
+//
+// Every polymorphic variant value is represented at runtime by 'polyVariantReprTy', the tag paired with
+// the boxed payload. A tag pattern becomes a synthesized partial active pattern over that representation.
+// Once all clauses of a match are checked, each position the match tests tags at is either open - some
+// unguarded clause has a wildcard there, so the scrutinee must carry at least the tags tested - or closed,
+// so it carries at most those tags. The tag patterns at a closed position are fused into one total
+// active pattern, which lets the match compiler see that the match is complete.
+//-------------------------------------------------------------------------
+
+/// Marks the name of a synthesized active pattern case that tests a polymorphic variant tag
+let private polyVariantCaseName (tag: string) = "`" + tag
+
+/// Reinterpret a reference to another reference type, emitting no code
+let private mkPolyVariantRetype (e: Expr) ty m = mkAsmExpr ([], [], [ e ], [ ty ], m)
+
+let private mkPolyVariantBox (g: TcGlobals.TcGlobals) payloadTy e m =
+    mkAsmExpr ([ AbstractIL.IL.I_box(AbstractIL.IL.mkILTyvarTy 0us) ], [ payloadTy ], [ e ], [ g.obj_ty_noNulls ], m)
+
+let private mkPolyVariantUnbox payloadTy e m =
+    mkAsmExpr ([ AbstractIL.IL.I_unbox_any(AbstractIL.IL.mkILTyvarTy 0us) ], [ payloadTy ], [ e ], [ payloadTy ], m)
+
+let mkPolyVariantConstruction (g: TcGlobals.TcGlobals) m variantTy tag payloadTy payloadExpr =
+    let reprExpr =
+        mkRefTupled g m [ mkString g m tag; mkPolyVariantBox g payloadTy payloadExpr m ] [ g.string_ty; g.obj_ty_noNulls ]
+
+    mkPolyVariantRetype reprExpr variantTy m
+
+/// Build 'fun (v: variantTy) -> body (tagExpr, payloadExpr)' where the two expressions read the tag and the boxed payload of v
+let private mkPolyVariantDestructor (g: TcGlobals.TcGlobals) m variantTy bodyTy body =
+    let reprTy = polyVariantReprTy g
+    let v, vExpr = mkCompGenLocal m "variant" variantTy
+    let r, rExpr = mkCompGenLocal m "repr" reprTy
+    let tupInfo = TupInfo.Const false
+
+    let tagExpr =
+        mkTupleFieldGet g (tupInfo, rExpr, [ g.string_ty; g.obj_ty_noNulls ], 0, m)
+
+    let payloadExpr =
+        mkTupleFieldGet g (tupInfo, rExpr, [ g.string_ty; g.obj_ty_noNulls ], 1, m)
+
+    let bodyExpr =
+        mkCompGenLet m r (mkPolyVariantRetype vExpr reprTy m) (body tagExpr payloadExpr)
+
+    mkLambda m v (bodyExpr, bodyTy)
+
+let private mkTagTest (g: TcGlobals.TcGlobals) m tagExpr tag =
+    mkCallEqualsOperator g m g.string_ty tagExpr (mkString g m tag)
+
+let mkPolyVariantTagPattern (g: TcGlobals.TcGlobals) m variantTy tag payloadTy subPat =
+    let resTy = mkOptionTy g payloadTy
+
+    let apExpr =
+        mkPolyVariantDestructor g m variantTy resTy (fun tagExpr payloadExpr ->
+            mkCond
+                DebugPointAtBinding.NoneAtInvisible
+                m
+                resTy
+                (mkTagTest g m tagExpr tag)
+                (mkSome g payloadTy (mkPolyVariantUnbox payloadTy payloadExpr m) m)
+                (mkNone g payloadTy m))
+
+    let apinfo = PrettyNaming.APInfo(false, [ polyVariantCaseName tag, m ], m)
+    TPat_query((apExpr, [ payloadTy ], ActivePatternReturnKind.RefTypeWrapper, None, 0, apinfo), subPat, m)
+
+let private (|PolyVariantTagPattern|_|) g pat =
+    match pat with
+    | TPat_query((apExpr, [ payloadTy ], _, None, 0, PrettyNaming.APInfo(false, [ name, _ ], _)), subPat, m) when
+        name.StartsWith("`", System.StringComparison.Ordinal)
+        ->
+        let variantTy = domainOfFunTy g (tyOfExpr g apExpr)
+        Some(variantTy, name.Substring 1, payloadTy, subPat, m)
+    | _ -> None
+
+[<NoEquality; NoComparison>]
+type private PolyVariantSite =
+    {
+        Path: string list
+        VariantTy: TType
+        Tag: string
+        PayloadTy: TType
+        Range: range
+    }
+
+/// Visit the tag patterns, the wildcards and the other refutable tests of a pattern, each with its position as a path from the root, innermost first
+let rec private visitPolyVariantPositions
+    g
+    path
+    pat
+    (onSite: PolyVariantSite -> unit)
+    (onWild: string list -> unit)
+    (onTest: string list -> unit)
+    =
+    let visit path p =
+        visitPolyVariantPositions g path p onSite onWild onTest
+
+    let visitAll prefix pats =
+        pats |> List.iteri (fun i p -> visit ($"%s{prefix}%d{i}" :: path) p)
+
+    match pat with
+    | PolyVariantTagPattern g (variantTy, tag, payloadTy, subPat, m) ->
+        onSite
+            {
+                Path = path
+                VariantTy = variantTy
+                Tag = tag
+                PayloadTy = payloadTy
+                Range = m
+            }
+
+        onTest path
+        visit (polyVariantCaseName tag :: path) subPat
+    | TPat_wild _ -> onWild path
+    | TPat_as(p, _, _) -> visit path p
+    | TPat_disjs(ps, _)
+    | TPat_conjs(ps, _) -> ps |> List.iter (visit path)
+    | TPat_query(_, p, _) ->
+        onTest path
+        visit ("ap" :: path) p
+    | TPat_tuple(_, ps, _, _) -> visitAll "t" ps
+    | TPat_unioncase(ucref, _, ps, _) ->
+        onTest path
+        visitAll ucref.CaseName ps
+    | TPat_exnconstr(_, ps, _) ->
+        onTest path
+        visitAll "exn" ps
+    | TPat_array(ps, _, _) ->
+        onTest path
+        visitAll "arr" ps
+    | TPat_recd(_, _, ps, _) -> visitAll "fld" ps
+    | TPat_isinst(_, _, pOpt, _) ->
+        onTest path
+        pOpt |> Option.iter (visit ("isinst" :: path))
+    | TPat_const(Const.Unit, _) -> ()
+    | TPat_const _
+    | TPat_null _
+    | TPat_error _ -> onTest path
+
+/// Replace the tag patterns at the given closed positions by cases of one total active pattern per position
+let rec private closePolyVariantPositions
+    g
+    path
+    (closed: Map<string list, string list * (string list -> Pattern -> range -> Pattern)>)
+    pat
+    =
+    let recurse p path =
+        closePolyVariantPositions g path closed p
+
+    let mapAll prefix pats =
+        pats |> List.mapi (fun i p -> recurse p ($"%s{prefix}%d{i}" :: path))
+
+    match pat with
+    | PolyVariantTagPattern g (_, tag, _, subPat, m) ->
+        let subPat = recurse subPat (polyVariantCaseName tag :: path)
+
+        match closed.TryFind path with
+        | Some(_, mkCase) -> mkCase [ tag ] subPat m
+        | None ->
+            match pat with
+            | TPat_query(q, _, m) -> TPat_query(q, subPat, m)
+            | _ -> pat
+    | TPat_as(p, b, m) -> TPat_as(recurse p path, b, m)
+    | TPat_disjs(ps, m) -> TPat_disjs(ps |> List.map (fun p -> recurse p path), m)
+    | TPat_conjs(ps, m) -> TPat_conjs(ps |> List.map (fun p -> recurse p path), m)
+    | TPat_query(q, p, m) -> TPat_query(q, recurse p ("ap" :: path), m)
+    | TPat_tuple(tupInfo, ps, tys, m) -> TPat_tuple(tupInfo, mapAll "t" ps, tys, m)
+    | TPat_unioncase(ucref, tinst, ps, m) -> TPat_unioncase(ucref, tinst, mapAll ucref.CaseName ps, m)
+    | TPat_exnconstr(tcref, ps, m) -> TPat_exnconstr(tcref, mapAll "exn" ps, m)
+    | TPat_array(ps, ty, m) -> TPat_array(mapAll "arr" ps, ty, m)
+    | TPat_recd(tcref, tinst, ps, m) -> TPat_recd(tcref, tinst, mapAll "fld" ps, m)
+    | TPat_isinst(srcTy, tgtTy, Some p, m) -> TPat_isinst(srcTy, tgtTy, Some(recurse p ("isinst" :: path)), m)
+    | TPat_wild _
+    | TPat_isinst(_, _, None, _)
+    | TPat_const _
+    | TPat_null _
+    | TPat_error _ -> pat
+
+/// The largest number of tags a closed position can be fused into a total active pattern for, the size of the largest Choice type
+let private maxClosedPolyVariantTags = 7
+
+/// Build the total active pattern that splits a value of a closed polymorphic variant type into its tags
+let private mkPolyVariantTotalPattern (g: TcGlobals.TcGlobals) m variantTy (tagsAndTys: (string * TType) list) =
+    let tags = List.map fst tagsAndTys
+    let payloadTys = List.map snd tagsAndTys
+    let n = tagsAndTys.Length
+
+    let apinfo =
+        PrettyNaming.APInfo(true, [ for tag in tags -> polyVariantCaseName tag, m ], m)
+
+    let resTy = apinfo.ResultType g m payloadTys ActivePatternReturnKind.RefTypeWrapper
+
+    let apExpr =
+        mkPolyVariantDestructor g m variantTy resTy (fun tagExpr payloadExpr ->
+            let mkResult i payloadTy =
+                let payload = mkPolyVariantUnbox payloadTy payloadExpr m
+
+                if n = 1 then
+                    payload
+                else
+                    mkUnionCaseExpr (mkChoiceCaseRef g m n i, payloadTys, [ payload ], m)
+
+            // The last tag needs no test: the type allows no other
+            let rec build i =
+                let tag, payloadTy = List.item i tagsAndTys
+
+                if i = n - 1 then
+                    mkResult i payloadTy
+                else
+                    mkCond DebugPointAtBinding.NoneAtInvisible m resTy (mkTagTest g m tagExpr tag) (mkResult i payloadTy) (build (i + 1))
+
+            build 0)
+
+    // Give the active pattern an identity, so the match compiler evaluates it once and knows its cases are complete
+    let identityVal, _ = mkCompGenLocal m "polyVariantTags" (mkFunTy g variantTy resTy)
+    let identity = Some(mkLocalValRef identityVal, [])
+
+    fun (caseTags: string list) subPat mCase ->
+        let idx = tags |> List.findIndex ((=) (List.head caseTags))
+        TPat_query((apExpr, payloadTys, ActivePatternReturnKind.RefTypeWrapper, identity, idx, apinfo), subPat, mCase)
+
+/// Decide, for each position a match tests polymorphic variant tags at, whether the scrutinee's tags are open or closed there.
+/// Constrain the scrutinee types accordingly and fuse the tag patterns at closed positions.
+let CheckPolyVariantMatchClauses (cenv: TcFileState) (env: TcEnv) (clauses: MatchClause list) =
+    let g = cenv.g
+    let sites = ResizeArray<PolyVariantSite>()
+    let wilds = ResizeArray<string list>()
+
+    // Paths are stored innermost first, so an ancestor of a position is a suffix of its path
+    let isAncestorOrSelf (ancestor: string list) (path: string list) =
+        ancestor.Length <= path.Length
+        && List.skip (path.Length - ancestor.Length) path = ancestor
+
+    for MatchClause(pat, guardOpt, _, _) in clauses do
+        let clauseWilds = ResizeArray()
+        let clauseTests = ResizeArray()
+        visitPolyVariantPositions g [] pat sites.Add clauseWilds.Add clauseTests.Add
+
+        // A wildcard leaves the positions at and below it open only if the clause catches everything that reaches it:
+        // no guard, and no tests other than those on the way to the wildcard.
+        if guardOpt.IsNone then
+            for wild in clauseWilds do
+                if
+                    clauseTests
+                    |> Seq.forall (fun test -> test.Length < wild.Length && isAncestorOrSelf test wild)
+                then
+                    wilds.Add wild
+
+    if sites.Count = 0 then
+        clauses
+    else
+        let isCovered (path: string list) =
+            wilds |> Seq.exists (fun wild -> isAncestorOrSelf wild path)
+
+        let mutable closed = Map.empty
+
+        for KeyValue(path, pathSites) in sites |> Seq.groupBy _.Path |> Map.ofSeq do
+            let pathSites = List.ofSeq pathSites
+            let first = List.head pathSites
+
+            let tagsAndTys =
+                pathSites
+                |> List.fold
+                    (fun acc site ->
+                        if List.exists (fun (tag, _) -> tag = site.Tag) acc then
+                            acc
+                        else
+                            (site.Tag, site.PayloadTy) :: acc)
+                    []
+                |> List.rev
+
+            if isCovered path then
+                for site in pathSites do
+                    AddCxTypeHasPolymorphicVariantTag env.DisplayEnv cenv.css site.Range NoTrace site.VariantTy site.Tag site.PayloadTy true
+            else
+                AddCxTypeIsPolymorphicVariantClosed env.DisplayEnv cenv.css first.Range NoTrace first.VariantTy (List.map fst tagsAndTys)
+
+                if tagsAndTys.Length <= maxClosedPolyVariantTags then
+                    let mkCase = mkPolyVariantTotalPattern g first.Range first.VariantTy tagsAndTys
+                    closed <- closed.Add(path, (List.map fst tagsAndTys, mkCase))
+
+        if closed.IsEmpty then
+            clauses
+        else
+            clauses
+            |> List.map (fun (MatchClause(pat, guardOpt, target, m)) ->
+                MatchClause(closePolyVariantPositions g [] closed pat, guardOpt, target, m))
+
+/// Decide whether the polymorphic variant tags of a lone pattern, such as that of a 'let' binding, are open or closed
+let CheckPolyVariantPattern (cenv: TcFileState) (env: TcEnv) (pat: Pattern) =
+    let m = pat.Range
+
+    match CheckPolyVariantMatchClauses cenv env [ MatchClause(pat, None, TTarget([], mkUnit cenv.g m, None), m) ] with
+    | [ MatchClause(pat, _, _, _) ] -> pat
+    | _ -> pat

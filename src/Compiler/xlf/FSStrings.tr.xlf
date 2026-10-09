@@ -127,6 +127,11 @@
         <target state="new">symbol '&gt;|}'</target>
         <note />
       </trans-unit>
+      <trans-unit id="Parser.TOKEN.POLYVARIANT.TAG">
+        <source>polymorphic variant tag</source>
+        <target state="new">polymorphic variant tag</target>
+        <note />
+      </trans-unit>
       <trans-unit id="Parser.TOKEN.RQUOTE.BAR.RBRACE">
         <source>symbol '@&gt;|}' or '@@&gt;|}'</source>
         <target state="new">symbol '@&gt;|}' or '@@&gt;|}'</target>

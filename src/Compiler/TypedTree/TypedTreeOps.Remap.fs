@@ -231,6 +231,10 @@ module internal TypeRemapping =
             else
                 TType_anon(AnonRecdTypeInfo.Create(anonInfo.Assembly, tupInfoR, anonInfo.SortedIds), lR)
 
+        | TType_variant(tags, l) as ty ->
+            let lR = remapTypesAux tyenv l
+            if l === lR then ty else TType_variant(tags, lR)
+
         | TType_tuple(tupInfo, l) as ty ->
             let tupInfoR = remapTupInfoAux tyenv tupInfo
             let lR = remapTypesAux tyenv l
@@ -297,6 +301,9 @@ module internal TypeRemapping =
             | TyparConstraint.IsDelegate(argTys, retTy, m) ->
                 Some(TyparConstraint.IsDelegate(remapTypeAux tyenv argTys, remapTypeAux tyenv retTy, m))
             | TyparConstraint.SimpleChoice(tys, m) -> Some(TyparConstraint.SimpleChoice(remapTypesAux tyenv tys, m))
+            | TyparConstraint.HasPolymorphicVariantTag(tag, payloadTy, isRequired, m) ->
+                Some(TyparConstraint.HasPolymorphicVariantTag(tag, remapTypeAux tyenv payloadTy, isRequired, m))
+            | TyparConstraint.IsPolymorphicVariantClosed _
             | TyparConstraint.SupportsComparison _
             | TyparConstraint.SupportsEquality _
             | TyparConstraint.SupportsNull _
@@ -1308,6 +1315,71 @@ module internal TypeDecomposition =
         | TType_anon(anonInfo, tys) -> ValueSome(anonInfo, tys)
         | _ -> ValueNone)
 
+    let tryDestPolyVariantTy g ty =
+        ty
+        |> stripTyEqns g
+        |> (function
+        | TType_variant(tags, tys) -> ValueSome(struct (tags, tys))
+        | _ -> ValueNone)
+
+    let isPolyVariantTy g ty = (tryDestPolyVariantTy g ty).IsSome
+
+    let mkPolyVariantTy (tagsAndTys: (string * TType) list) =
+        let sorted =
+            tagsAndTys
+            |> List.sortWith (fun (tag1, _) (tag2, _) -> String.CompareOrdinal(tag1, tag2))
+
+        TType_variant(List.map fst sorted, List.map snd sorted)
+
+    let polyVariantReprTy (g: TcGlobals) =
+        TType_tuple(TupInfo.Const false, [ g.string_ty; g.obj_ty_noNulls ])
+
+    [<NoEquality; NoComparison>]
+    type PolyVariantRow =
+        {
+            Required: string list
+            Closed: string list voption
+            Payloads: (string * TType) list
+        }
+
+    let tryGetPolyVariantRow (tp: Typar) =
+        let mutable isVariant = false
+        let mutable required = []
+        let mutable closed = ValueNone
+        let mutable payloads = []
+
+        for cx in tp.Constraints do
+            match cx with
+            | TyparConstraint.HasPolymorphicVariantTag(tag, payloadTy, isRequired, _) ->
+                isVariant <- true
+
+                if isRequired && not (List.contains tag required) then
+                    required <- tag :: required
+
+                if not (List.exists (fun (tag2, _) -> tag2 = tag) payloads) then
+                    payloads <- (tag, payloadTy) :: payloads
+            | TyparConstraint.IsPolymorphicVariantClosed(tags, _) ->
+                isVariant <- true
+
+                closed <-
+                    match closed with
+                    | ValueNone -> ValueSome tags
+                    | ValueSome tags2 -> ValueSome(tags2 |> List.filter (fun tag -> List.contains tag tags))
+            | _ -> ()
+
+        if isVariant then
+            let sort =
+                List.sortWith (fun (tag1: string) tag2 -> String.CompareOrdinal(tag1, tag2))
+
+            ValueSome
+                {
+                    Required = sort required
+                    Closed = closed |> ValueOption.map sort
+                    Payloads = List.rev payloads
+                }
+        else
+            ValueNone
+
     let tryAnyParTy g ty =
         ty
         |> stripTyEqns g
@@ -1554,6 +1626,15 @@ module internal TypeEquivalence =
         | TyparConstraint.SimpleChoice(tys1, _), TyparConstraint.SimpleChoice(tys2, _) ->
             ListSet.equals (typeAEquivAux erasureFlag g aenv) tys1 tys2
 
+        | TyparConstraint.HasPolymorphicVariantTag(tag1, payloadTy1, isRequired1, _),
+          TyparConstraint.HasPolymorphicVariantTag(tag2, payloadTy2, isRequired2, _) ->
+            tag1 = tag2
+            && isRequired1 = isRequired2
+            && typeAEquivAux erasureFlag g aenv payloadTy1 payloadTy2
+
+        | TyparConstraint.IsPolymorphicVariantClosed(tags1, _), TyparConstraint.IsPolymorphicVariantClosed(tags2, _) ->
+            ListSet.equals (=) tags1 tags2
+
         | TyparConstraint.SupportsComparison _, TyparConstraint.SupportsComparison _
         | TyparConstraint.SupportsEquality _, TyparConstraint.SupportsEquality _
         | TyparConstraint.SupportsNull _, TyparConstraint.SupportsNull _
@@ -1623,6 +1704,8 @@ module internal TypeEquivalence =
 
         | TType_anon(anonInfo1, l1), TType_anon(anonInfo2, l2) ->
             anonInfoEquiv anonInfo1 anonInfo2 && typesAEquivAux erasureFlag g aenv l1 l2
+
+        | TType_variant(tags1, l1), TType_variant(tags2, l2) -> tags1 = tags2 && typesAEquivAux erasureFlag g aenv l1 l2
 
         | TType_measure m1, TType_measure m2 ->
             match erasureFlag with

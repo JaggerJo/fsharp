@@ -431,6 +431,33 @@ module internal TypeDecomposition =
 
     val tryDestAnonRecdTy: TcGlobals -> TType -> (AnonRecdTypeInfo * TType list) voption
 
+    /// Get the tags and payload types of an exact polymorphic variant type
+    val tryDestPolyVariantTy: TcGlobals -> TType -> struct (string list * TTypes) voption
+
+    val isPolyVariantTy: TcGlobals -> TType -> bool
+
+    /// Build an exact polymorphic variant type from its tags and payload types, in any order
+    val mkPolyVariantTy: tagsAndTys: (string * TType) list -> TType
+
+    /// The runtime representation every polymorphic variant type erases to: the tag paired with the boxed payload, string * obj
+    val polyVariantReprTy: g: TcGlobals -> TType
+
+    /// The polymorphic variant row a type parameter is constrained to, collected from its constraints
+    [<NoEquality; NoComparison>]
+    type PolyVariantRow =
+        {
+            /// The tags the type must carry, sorted
+            Required: string list
+
+            /// The tags the type may carry at most, sorted, when it is bounded
+            Closed: string list voption
+
+            /// The known payload type of each tag
+            Payloads: (string * TType) list
+        }
+
+    val tryGetPolyVariantRow: tp: Typar -> PolyVariantRow voption
+
     val tryAnyParTy: TcGlobals -> TType -> Typar voption
 
     val tryAnyParTyOption: TcGlobals -> TType -> Typar option

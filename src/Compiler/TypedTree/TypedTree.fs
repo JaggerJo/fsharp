@@ -2701,6 +2701,13 @@ type TyparConstraint =
     /// An anti-constraint indicating that ref structs (e.g. Span<>) are allowed here
     | AllowsRefStruct of range:range
 
+    /// A constraint that a type is a polymorphic variant type which, if it carries the given tag, carries it with the given payload type.
+    /// When 'isRequired' the type must carry the tag (a lower bound, written [> `Tag ]).
+    | HasPolymorphicVariantTag of tag: string * payloadTy: TType * isRequired: bool * range: range
+
+    /// A constraint that a type is a polymorphic variant type carrying at most the given tags (an upper bound, written [< `A | `B ])
+    | IsPolymorphicVariantClosed of tags: string list * range: range
+
     // %+A formatting is used, so this is not needed
     //[<DebuggerBrowsable(DebuggerBrowsableState.Never)>]
     //member x.DebugText = x.ToString()
@@ -4655,6 +4662,10 @@ type TType =
     /// Indicates the type is a tuple type. elementTypes must be of length 2 or greater.
     | TType_tuple of tupInfo: TupInfo * elementTypes: TTypes
 
+    /// Indicates the type is an exact polymorphic variant type, [ `A of int | `B ]. 'tags' are sorted ordinally and
+    /// 'payloadTys' holds the payload type of each tag, 'unit' for a tag without payload.
+    | TType_variant of tags: string list * payloadTys: TTypes
+
     /// TType_fun(domainType, rangeType, nullness).
     ///
     /// Indicates the type is a function type
@@ -4678,6 +4689,7 @@ type TType =
         | TType_forall (_tps, ty) -> ty.GetAssemblyName()
         | TType_app (tcref, _tinst, _) -> tcref.CompilationPath.ILScopeRef.QualifiedName
         | TType_tuple _ -> ""
+        | TType_variant _ -> ""
         | TType_anon (anonInfo, _tinst) -> defaultArg anonInfo.Assembly.QualifiedName ""
         | TType_fun _ -> ""
         | TType_measure _ -> ""
@@ -4703,6 +4715,7 @@ type TType =
              | TupInfo.Const false -> ""
              | TupInfo.Const true -> "struct ")
              + "{|" + String.concat "," (Seq.map2 (fun nm ty -> nm + " " + string ty + ";") anonInfo.SortedNames tinst) + "|}"
+        | TType_variant (tags, tys) -> "[ " + String.concat " | " (List.map2 (fun tag ty -> "`" + tag + " of " + string ty) tags tys) + " ]"
         | TType_fun (domainTy, retTy, nullness) -> "(" + string domainTy + " -> " + string retTy + ")" + nullness.ToString()
         | TType_ucase (uc, tinst) -> "ucase " + uc.CaseName + (match tinst with [] -> "" | tys -> "<" + String.concat "," (List.map string tys) + ">")
         | TType_var (tp, _) ->

@@ -258,6 +258,9 @@
   <data name="Parser.TOKEN.IDENT" xml:space="preserve">
     <value>identifier</value>
   </data>
+  <data name="Parser.TOKEN.POLYVARIANT.TAG" xml:space="preserve">
+    <value>polymorphic variant tag</value>
+  </data>
   <data name="Parser.TOKEN.INT" xml:space="preserve">
     <value>integer literal</value>
   </data>

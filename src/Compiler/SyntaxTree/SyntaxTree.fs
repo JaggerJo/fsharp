@@ -716,6 +716,8 @@ type SynExpr =
 
     | Null of range: range
 
+    | PolymorphicVariant of tag: Ident * range: range
+
     | AddressOf of isByref: bool * expr: SynExpr * opRange: range * range: range
 
     | TraitCall of supportTys: SynType * traitSig: SynMemberSig * argExpr: SynExpr * range: range
@@ -831,6 +833,7 @@ type SynExpr =
         | SynExpr.InferredUpcast(range = m)
         | SynExpr.InferredDowncast(range = m)
         | SynExpr.Null(range = m)
+        | SynExpr.PolymorphicVariant(range = m)
         | SynExpr.Lazy(range = m)
         | SynExpr.TraitCall(range = m)
         | SynExpr.ImplicitZero(range = m)
@@ -1018,6 +1021,8 @@ type SynPat =
 
     | Null of range: range
 
+    | PolymorphicVariant of tag: Ident * argPat: SynPat option * range: range
+
     | OptionalVal of ident: Ident * range: range
 
     | IsInst of pat: SynType * range: range
@@ -1049,6 +1054,7 @@ type SynPat =
         | SynPat.Attrib(range = m)
         | SynPat.Record(range = m)
         | SynPat.Null(range = m)
+        | SynPat.PolymorphicVariant(range = m)
         | SynPat.IsInst(range = m)
         | SynPat.QuoteExpr(range = m)
         | SynPat.InstanceMember(range = m)

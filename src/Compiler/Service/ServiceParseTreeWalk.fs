@@ -787,6 +787,7 @@ module SyntaxTraversal =
                 | SynExpr.LongIdent _
                 | SynExpr.Typar _
                 | SynExpr.Const _
+                | SynExpr.PolymorphicVariant _
                 | SynExpr.Null _
                 | SynExpr.ImplicitZero _
                 | SynExpr.LibraryOnlyILAssembly _

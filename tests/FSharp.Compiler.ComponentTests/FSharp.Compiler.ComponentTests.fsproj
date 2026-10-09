@@ -415,6 +415,7 @@
     <Compile Include="Language\IndexedSetTests.fs" />
     <Compile Include="Language\UseBindingDisposalTests.fs" />
     <Compile Include="Language\RecordSpreadsTests.fs" />
+    <Compile Include="Language\PolymorphicVariantsTests.fs" />
     <Compile Include="Language\RequireNamedArgumentsTests.fs" />
     <Compile Include="Language\ReraiseInComputationExpressionsTests.fs" />
     <Compile Include="Import\ImportTests.fs" />

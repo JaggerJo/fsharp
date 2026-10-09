@@ -505,6 +505,7 @@ module DeclarationListHelpers =
 
         // We don't expect Item.Types with an anonymous record type, function types etc.
         | Item.Types (_, [TType_anon _])
+        | Item.Types (_, [TType_variant _])
         | Item.Types (_, [TType_fun _])
         | Item.Types (_, [TType_forall _])
         | Item.Types (_, [TType_tuple _])

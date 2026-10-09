@@ -527,6 +527,7 @@ let visitSynExpr (e: SynExpr) : FileContentEntry list =
             | SynExpr.Downcast(expr, targetType, _) -> visit expr (fun nodes -> nodes @ visitSynType targetType |> continuation)
             | SynExpr.InferredUpcast(expr, _) -> visit expr continuation
             | SynExpr.InferredDowncast(expr, _) -> visit expr continuation
+            | SynExpr.PolymorphicVariant _
             | SynExpr.Null _ -> continuation []
             | SynExpr.AddressOf(expr = expr) -> visit expr continuation
             | SynExpr.TraitCall(supportTys, traitSig, argExpr, _) ->
@@ -669,6 +670,8 @@ let visitPat (p: SynPat) : FileContentEntry list =
             let pats = fieldPats |> List.map (fun f -> f.Pattern)
             let continuations = List.map visit pats
             Continuation.concatenate continuations continuation
+        | SynPat.PolymorphicVariant(argPat = Some pat) -> visit pat continuation
+        | SynPat.PolymorphicVariant(argPat = None)
         | SynPat.Null _ -> continuation []
         | SynPat.OptionalVal _ -> continuation []
         | SynPat.IsInst(t, _) -> continuation (visitSynType t)

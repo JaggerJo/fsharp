@@ -273,6 +273,7 @@ let tryAddNullnessToTy nullnessNew (ty:TType) =
     | TType_ucase _
     | TType_tuple _
     | TType_anon _
+    | TType_variant _
     | TType_forall _
     | TType_measure _ -> None
 
