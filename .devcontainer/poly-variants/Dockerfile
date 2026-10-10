@@ -48,8 +48,9 @@ ENV DOTNET_ROOT=/usr/share/dotnet \
     DOTNET_ROLL_FORWARD_TO_PRERELEASE=1 \
     DotnetFscCompilerPath=/opt/fsharp-pv/fsc/fsc.dll
 
+# VS Code runs as root, the user that owns the checked-out workspace both in Codespaces and with local Docker
 LABEL devcontainer.metadata='[{ \
-  "remoteUser": "vscode", \
+  "remoteUser": "root", \
   "customizations": { "vscode": { \
     "extensions": [ "Ionide.Ionide-fsharp" ], \
     "settings": { \
