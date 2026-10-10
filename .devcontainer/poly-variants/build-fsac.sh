@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Builds FsAutoComplete against a locally built FSharp.Compiler.Service.
-# Usage: build-fsac.sh <fsac checkout> <folder with FSharp.Compiler.Service.dll, FSharp.Core.dll, FSharp.DependencyManager.Nuget.dll> <output folder>
+# Usage: build-fsac.sh <fsac checkout> <folder with FSharp.Compiler.Service.dll and FSharp.DependencyManager.Nuget.dll> <output folder>
 #
 # FsAutoComplete's packages are restored unchanged (its analyzer SDK pins FSharp.Core exactly, so Paket cannot
-# resolve a newer FSharp.Core); UseLocalFcs.targets then swaps in the local assemblies for compilation and publish.
+# resolve a newer FCS); UseLocalFcs.targets then swaps in the local assemblies for compilation and publish.
 set -euo pipefail
 
 fsac=$(cd "$1" && pwd)
@@ -11,7 +11,7 @@ lib=$(cd "$2" && pwd)
 out=$3
 here=$(cd "$(dirname "$0")" && pwd)
 
-for assembly in FSharp.Compiler.Service FSharp.Core FSharp.DependencyManager.Nuget; do
+for assembly in FSharp.Compiler.Service FSharp.DependencyManager.Nuget; do
   if [ ! -f "$lib/$assembly.dll" ]; then
     echo "error: $lib/$assembly.dll not found" >&2
     exit 1

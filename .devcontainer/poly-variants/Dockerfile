@@ -21,7 +21,6 @@ ARG FSAC_VERSION
 RUN git clone --depth 1 --branch $FSAC_VERSION https://github.com/ionide/FsAutoComplete.git /src/fsac
 COPY .devcontainer/poly-variants/build-fsac.sh .devcontainer/poly-variants/UseLocalFcs.targets .devcontainer/poly-variants/fsac.patch /src/fsac-build/
 COPY --from=compiler /src/fsharp/artifacts/bin/FSharp.Compiler.Service/Release/netstandard2.0 /src/fcs
-COPY --from=compiler /src/fsharp/artifacts/bin/FSharp.Core/Release/netstandard2.0/FSharp.Core.dll /src/fcs/
 RUN /src/fsac-build/build-fsac.sh /src/fsac /src/fcs /out/fsautocomplete
 
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
