@@ -826,6 +826,8 @@ module SyntaxTraversal =
                 | SynPat.QuoteExpr(expr, _) -> traverseSynExpr path expr
                 | SynPat.IsInst(ty, _) -> traverseSynType path ty
                 | SynPat.FromParseError(p, _) -> traversePat path p
+                | SynPat.PolymorphicVariant(argPat = Some p) -> traversePat path p
+                | SynPat.PolymorphicVariantType(ty, _) -> traverseSynType path ty
                 | _ -> None
 
             visitor.VisitPat(origPath, defaultTraverse, pat)

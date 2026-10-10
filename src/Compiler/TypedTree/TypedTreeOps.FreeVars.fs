@@ -1183,6 +1183,7 @@ module internal MemberRepresentation =
                 singletons: Typar Zset
                 inplaceConstraints: Zmap<Typar, TType>
                 postfixConstraints: (Typar * TyparConstraint) list
+                inlinePolyVariantRows: bool
             }
 
         let typeSimplificationInfo0 =
@@ -1190,6 +1191,7 @@ module internal MemberRepresentation =
                 singletons = Zset.empty typarOrder
                 inplaceConstraints = Zmap.empty typarOrder
                 postfixConstraints = []
+                inlinePolyVariantRows = false
             }
 
         let categorizeConstraints simplify m cxs =
@@ -1227,6 +1229,7 @@ module internal MemberRepresentation =
                 singletons = singletons
                 inplaceConstraints = Zmap.ofList typarOrder inplace
                 postfixConstraints = postfix
+                inlinePolyVariantRows = false
             }
 
         let CollectInfo simplify tys cxs =

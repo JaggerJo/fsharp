@@ -1,0 +1,5 @@
+artifacts
+.dotnet
+.packages
+**/bin
+**/obj

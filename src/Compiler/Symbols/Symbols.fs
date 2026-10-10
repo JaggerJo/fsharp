@@ -3071,6 +3071,10 @@ type FSharpType(cenv, ty:TType) =
         | TType_measure (Measure.Prod(measure1= t1; measure2 = t2)) ->  [| FSharpType(cenv, TType_measure t1); FSharpType(cenv, TType_measure t2) |] |> makeReadOnlyCollection
         | TType_measure (Measure.One _) ->  [| |] |> makeReadOnlyCollection
         | TType_measure (Measure.Inv t1) ->  [| FSharpType(cenv, TType_measure t1) |] |> makeReadOnlyCollection
+        | TType_variant _ as ty ->
+            match tryDestPolyVariantTy cenv.g ty with
+            | ValueSome struct (_, payloadTys) -> payloadTys |> List.map (fun ty -> FSharpType(cenv, ty)) |> makeReadOnlyCollection
+            | ValueNone -> [| |] |> makeReadOnlyCollection
         | _ -> invalidOp "not a named type"
 
 (*

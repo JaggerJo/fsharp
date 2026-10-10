@@ -390,9 +390,13 @@ module internal MemberRepresentation =
         val foldTypeButNotConstraints: (TType -> TType) -> ('State -> TType -> 'State) -> 'State -> TType -> 'State
 
         type TypeSimplificationInfo =
-            { singletons: Typar Zset
-              inplaceConstraints: Zmap<Typar, TType>
-              postfixConstraints: TyparConstraintsWithTypars }
+            {
+                singletons: Typar Zset
+                inplaceConstraints: Zmap<Typar, TType>
+                postfixConstraints: TyparConstraintsWithTypars
+                /// Show a type parameter's polymorphic variant row in its place, for displays without constraints
+                inlinePolyVariantRows: bool
+            }
 
         val typeSimplificationInfo0: TypeSimplificationInfo
 

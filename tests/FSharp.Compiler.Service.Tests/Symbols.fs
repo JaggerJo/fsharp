@@ -2011,3 +2011,28 @@ module Hidden =
             let secret = hidden.NestedEntities |> Seq.exactlyOne
             stampOf (Option.get hidden.DeclaringEntity) |> shouldEqual (stampOf test)
             stampOf (Option.get secret.DeclaringEntity) |> shouldEqual (stampOf hidden)
+
+module PolymorphicVariants =
+
+    [<Fact>]
+    let ``Generic arguments of a variant type are its payload types`` () =
+        let _, checkResults = getParseAndCheckResultsPreview """
+let colour: [ `Red | `Rgb of int * int * int ] = `Red
+"""
+        let symbolUse = findSymbolUseByName "colour" checkResults
+        let mfv = symbolUse.Symbol :?> FSharpMemberOrFunctionOrValue
+
+        mfv.FullType.GenericArguments
+        |> Seq.map _.Format(symbolUse.DisplayContext)
+        |> List.ofSeq
+        |> shouldEqual [ "unit"; "int * int * int" ]
+
+    [<Theory>]
+    [<InlineData("let value = `Red", "[> `Red ]")>]
+    [<InlineData("let value c = match c with `Red -> 1 | `Green -> 2", "[< `Green | `Red ] -> int")>]
+    [<InlineData("let value (c: [> `Red ]) = c, c", "([> `Red ] as 'a) -> ([> `Red ] as 'a) * ([> `Red ] as 'a)")>]
+    let ``Format shows a type parameter's variant row in its place`` (source: string, expected: string) =
+        let _, checkResults = getParseAndCheckResultsPreview source
+        let symbolUse = findSymbolUseByName "value" checkResults
+        let mfv = symbolUse.Symbol :?> FSharpMemberOrFunctionOrValue
+        mfv.FullType.Format(symbolUse.DisplayContext) |> shouldEqual expected

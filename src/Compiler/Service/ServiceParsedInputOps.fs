@@ -685,6 +685,8 @@ module ParsedInput =
             | SynPat.ArrayOrList(_, pats, _) -> List.tryPick walkPat pats
             | SynPat.IsInst(t, _) -> walkType t
             | SynPat.QuoteExpr(e, _) -> walkExpr e
+            | SynPat.PolymorphicVariant(argPat = Some pat) -> walkPat pat
+            | SynPat.PolymorphicVariantType(t, _) -> walkType t
             | _ -> None
 
         and walkPat = walkPatWithKind None
@@ -2029,6 +2031,8 @@ module ParsedInput =
             | SynPat.Paren(pat, _) -> walkPat pat
             | SynPat.IsInst(t, _) -> walkType t
             | SynPat.QuoteExpr(e, _) -> walkExpr e
+            | SynPat.PolymorphicVariant(argPat = Some pat) -> walkPat pat
+            | SynPat.PolymorphicVariantType(t, _) -> walkType t
             | _ -> ()
 
         and walkTypar (SynTypar _) = ()

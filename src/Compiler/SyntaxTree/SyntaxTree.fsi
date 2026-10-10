@@ -908,11 +908,6 @@ type SynExpr =
     /// F# syntax: null
     | Null of range: range
 
-    /// F# syntax: `Tag
-    ///
-    /// A polymorphic variant tag. A payload is supplied by ordinary application: `Tag expr
-    | PolymorphicVariant of tag: Ident * range: range
-
     /// F# syntax: &expr, &&expr
     | AddressOf of isByref: bool * expr: SynExpr * opRange: range * range: range
 
@@ -1015,6 +1010,11 @@ type SynExpr =
 
     /// F# syntax: f?x
     | Dynamic of funcExpr: SynExpr * qmark: range * argExpr: SynExpr * range: range
+
+    /// F# syntax: `Tag
+    ///
+    /// A polymorphic variant tag. A payload is supplied by ordinary application: `Tag expr
+    | PolymorphicVariant of tag: Ident * range: range
 
     /// Gets the syntax range of this construct
     member Range: range
@@ -1230,12 +1230,6 @@ type SynPat =
     /// The 'null' pattern
     | Null of range: range
 
-    /// A polymorphic variant tag pattern: `Tag or `Tag pat
-    | PolymorphicVariant of tag: Ident * argPat: SynPat option * range: range
-
-    /// '#Color': any tag of the exact polymorphic variant type Color
-    | PolymorphicVariantType of variantType: SynType * range: range
-
     /// '?id' -- for optional argument names
     | OptionalVal of ident: Ident * range: range
 
@@ -1255,6 +1249,12 @@ type SynPat =
 
     /// A pattern arising from a parse error
     | FromParseError of pat: SynPat * range: range
+
+    /// A polymorphic variant tag pattern: `Tag or `Tag pat
+    | PolymorphicVariant of tag: Ident * argPat: SynPat option * range: range
+
+    /// '#Color': any tag of the exact polymorphic variant type Color
+    | PolymorphicVariantType of variantType: SynType * range: range
 
     /// Gets the syntax range of this construct
     member Range: range

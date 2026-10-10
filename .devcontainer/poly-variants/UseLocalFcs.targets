@@ -1,0 +1,24 @@
+<Project>
+  <!--
+    Imported from FsAutoComplete's Directory.Build.targets by build-fsac.sh. Replaces the compile and runtime assets of the
+    FSharp.Compiler.Service, FSharp.Core and FSharp.DependencyManager.Nuget packages with the assemblies in
+    $(LocalFcsDir), keeping the package metadata so the deps.json still lists them under their packages.
+  -->
+  <Target Name="UseLocalFcs" AfterTargets="ResolvePackageAssets" Condition="'$(LocalFcsDir)' != ''">
+    <ItemGroup>
+      <_LocalFcsCompile Include="@(ResolvedCompileFileDefinitions)" Condition="'%(Filename)' == 'FSharp.Compiler.Service' or '%(Filename)' == 'FSharp.Core' or '%(Filename)' == 'FSharp.DependencyManager.Nuget'" />
+      <_LocalFcsCompileReplacement Include="@(_LocalFcsCompile->'$(LocalFcsDir)/%(Filename)%(Extension)')" />
+      <_LocalFcsCompileReplacement>
+        <HintPath>%(FullPath)</HintPath>
+      </_LocalFcsCompileReplacement>
+      <ResolvedCompileFileDefinitions Remove="@(_LocalFcsCompile)" />
+      <ResolvedCompileFileDefinitions Include="@(_LocalFcsCompileReplacement)" />
+
+      <_LocalFcsRuntime Include="@(RuntimeCopyLocalItems)" Condition="'%(Filename)' == 'FSharp.Compiler.Service' or '%(Filename)' == 'FSharp.Core' or '%(Filename)' == 'FSharp.DependencyManager.Nuget'" />
+      <RuntimeCopyLocalItems Remove="@(_LocalFcsRuntime)" />
+      <RuntimeCopyLocalItems Include="@(_LocalFcsRuntime->'$(LocalFcsDir)/%(Filename)%(Extension)')" />
+    </ItemGroup>
+
+    <Error Condition="'@(_LocalFcsCompile)' == ''" Text="UseLocalFcs: no FSharp.Compiler.Service/FSharp.Core compile assets found to replace" />
+  </Target>
+</Project>

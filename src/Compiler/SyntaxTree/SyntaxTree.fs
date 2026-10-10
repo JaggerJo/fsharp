@@ -743,8 +743,6 @@ type SynExpr =
 
     | Null of range: range
 
-    | PolymorphicVariant of tag: Ident * range: range
-
     | AddressOf of isByref: bool * expr: SynExpr * opRange: range * range: range
 
     | TraitCall of supportTys: SynType * traitSig: SynMemberSig * argExpr: SynExpr * range: range
@@ -802,6 +800,8 @@ type SynExpr =
     | DebugPoint of debugPoint: DebugPointAtLeafExpr * isControlFlow: bool * innerExpr: SynExpr
 
     | Dynamic of funcExpr: SynExpr * qmark: range * argExpr: SynExpr * range: range
+
+    | PolymorphicVariant of tag: Ident * range: range
 
     member e.Range =
         match e with
@@ -1048,10 +1048,6 @@ type SynPat =
 
     | Null of range: range
 
-    | PolymorphicVariant of tag: Ident * argPat: SynPat option * range: range
-
-    | PolymorphicVariantType of variantType: SynType * range: range
-
     | OptionalVal of ident: Ident * range: range
 
     | IsInst of pat: SynType * range: range
@@ -1066,6 +1062,10 @@ type SynPat =
         range: range
 
     | FromParseError of pat: SynPat * range: range
+
+    | PolymorphicVariant of tag: Ident * argPat: SynPat option * range: range
+
+    | PolymorphicVariantType of variantType: SynType * range: range
 
     member p.Range =
         match p with

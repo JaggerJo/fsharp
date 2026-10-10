@@ -1,0 +1,722 @@
+diff --git a/src/FsAutoComplete.Core/Commands.fs b/src/FsAutoComplete.Core/Commands.fs
+index f4f2990..886e793 100644
+--- a/src/FsAutoComplete.Core/Commands.fs
++++ b/src/FsAutoComplete.Core/Commands.fs
+@@ -877,7 +877,7 @@ module Commands =
+       // Note: declarations in script files are currently always local!
+       | Some SymbolDeclarationLocation.CurrentDocument ->
+         let! ct = Async.CancellationToken
+-        let symbolUses = tyRes.GetCheckResults.GetUsesOfSymbolInFile(symbol, ct)
++        let symbolUses = tyRes.GetCheckResults.GetUsesOfSymbolInFile(symbol, cancellationToken = ct)
+ 
+         let symbolUses: _ seq =
+           if includeDeclarations then
+@@ -1413,8 +1413,8 @@ type Commands() =
+ 
+               member _.VisitComponentInfo(_, synComponentInfo) =
+                 match synComponentInfo with
+-                | SynComponentInfo(attributes = attributes; longId = longId; xmlDoc = xmlDoc) when
+-                  longIdentContainsPos longId pos && xmlDoc.IsEmpty
++                | SynComponentInfo(attributes = attributes; xmlDoc = xmlDoc) as ci when
++                  longIdentContainsPos ci.LongIdent pos && xmlDoc.IsEmpty
+                   ->
+                   Some(false, tryGetFirstAttributeLine attributes)
+                 | _ -> None
+@@ -1422,7 +1422,7 @@ type Commands() =
+               member _.VisitRecordDefn(_, fields, _) =
+                 let isInLine c =
+                   match c with
+-                  | SynField(attributes = attributes; xmlDoc = xmlDoc; idOpt = Some ident) when
++                  | SynFieldOrSpread.Field(SynField(attributes = attributes; xmlDoc = xmlDoc; idOpt = Some ident)) when
+                     rangeContainsPos ident.idRange pos && xmlDoc.IsEmpty
+                     ->
+                     Some(false, tryGetFirstAttributeLine attributes)
+@@ -1488,8 +1488,8 @@ type Commands() =
+                       match d with
+                       | SynModuleDecl.NestedModule(moduleInfo = moduleInfo; decls = decls) ->
+                         match moduleInfo with
+-                        | SynComponentInfo(attributes = attributes; longId = longId; xmlDoc = xmlDoc) when
+-                          longIdentContainsPos longId pos && xmlDoc.IsEmpty
++                        | SynComponentInfo(attributes = attributes; xmlDoc = xmlDoc) as ci when
++                          longIdentContainsPos ci.LongIdent pos && xmlDoc.IsEmpty
+                           ->
+                           Some(false, tryGetFirstAttributeLine attributes)
+                         | _ -> findNested decls
+diff --git a/src/FsAutoComplete.Core/FCSPatches.fs b/src/FsAutoComplete.Core/FCSPatches.fs
+index cd727eb..fcca48c 100644
+--- a/src/FsAutoComplete.Core/FCSPatches.fs
++++ b/src/FsAutoComplete.Core/FCSPatches.fs
+@@ -61,6 +61,7 @@ module SyntaxTreeOps =
+       | SynExpr.LibraryOnlyILAssembly _
+       | SynExpr.LibraryOnlyStaticOptimization _
+       | SynExpr.Null _
++      | SynExpr.PolymorphicVariant _
+       | SynExpr.Ident _
+       | SynExpr.ImplicitZero _
+       | SynExpr.Typar _
+@@ -106,14 +107,22 @@ module SyntaxTreeOps =
+         (match copyInfo with
+          | Some(e, _) -> walkExpr e
+          | None -> false)
+-        || walkExprs (recordFields |> List.map (fun (_ident, _range, expr) -> expr))
++        || walkExprs (
++          recordFields
++          |> List.map (function
++            | SynExprAnonRecordFieldOrSpread.Field(SynExprAnonRecordField(expr = expr), _)
++            | SynExprAnonRecordFieldOrSpread.Spread(SynExprSpread(expr = expr), _) -> expr)
++        )
+ 
+       | SynExpr.Record(copyInfo = copyInfo; recordFields = recordFields) ->
+         (match copyInfo with
+          | Some(e, _) -> walkExpr e
+          | None -> false)
+         || let flds =
+-             recordFields |> List.choose (fun (SynExprRecordField(expr = expr)) -> expr) in
++             recordFields
++             |> List.choose (function
++               | SynExprRecordFieldOrSpread.Field(SynExprRecordField(expr = expr), _) -> expr
++               | SynExprRecordFieldOrSpread.Spread(SynExprSpread(expr = expr), _) -> Some expr) in
+ 
+            walkExprs flds
+ 
+diff --git a/src/FsAutoComplete.Core/KeywordList.fs b/src/FsAutoComplete.Core/KeywordList.fs
+index de83ea1..7f58272 100644
+--- a/src/FsAutoComplete.Core/KeywordList.fs
++++ b/src/FsAutoComplete.Core/KeywordList.fs
+@@ -8,6 +8,13 @@ open FSharp.Compiler.Symbols
+ 
+ module KeywordList =
+ 
++  // RichText has no public constructor; its module is internal to FSharp.Compiler.Service.
++  let private richText: TaggedText[] -> RichText =
++    let ofParts =
++      typeof<RichText>.Assembly.GetType("FSharp.Compiler.Text.RichTextModule").GetMethod("ofParts")
++
++    fun parts -> ofParts.Invoke(null, [| parts |]) :?> RichText
++
+   let keywordDescriptions = FSharpKeywords.KeywordsWithDescription |> dict
+ 
+   let keywordTooltips =
+@@ -20,7 +27,7 @@ module KeywordList =
+       let tip =
+         ToolTipText
+           [ ToolTipElement.Single(
+-              [| TaggedText.tagText kv.Key |],
++              richText [| TaggedText.tagText kv.Key |],
+               FSharpXmlDoc.FromXmlText(FSharp.Compiler.Xml.XmlDoc(allLines, Range.Zero))
+             ) ]
+ 
+@@ -51,7 +58,7 @@ module KeywordList =
+       let tip =
+         ToolTipText
+           [ ToolTipElement.Single(
+-              [| TaggedText.tagText ("#" + kv.Key) |],
++              richText [| TaggedText.tagText ("#" + kv.Key) |],
+               FSharpXmlDoc.FromXmlText(FSharp.Compiler.Xml.XmlDoc(allLines, Range.Zero))
+             ) ]
+ 
+diff --git a/src/FsAutoComplete.Core/Lexer.fs b/src/FsAutoComplete.Core/Lexer.fs
+index 803dc48..1d2cb99 100644
+--- a/src/FsAutoComplete.Core/Lexer.fs
++++ b/src/FsAutoComplete.Core/Lexer.fs
+@@ -69,7 +69,7 @@ module Lexer =
+         | _ -> defines, langVersion)
+ 
+     let sourceTokenizer =
+-      FSharpSourceTokenizer(Seq.toList defines, Some "/tmp.fsx", langVersion, None)
++      FSharpSourceTokenizer(Seq.toList defines, Some "/tmp.fsx", langVersion)
+ 
+     let lineTokenizer = sourceTokenizer.CreateLineTokenizer lineStr
+ 
+diff --git a/src/FsAutoComplete.Core/RecordStubGenerator.fs b/src/FsAutoComplete.Core/RecordStubGenerator.fs
+index 2958a28..e6e9f7f 100644
+--- a/src/FsAutoComplete.Core/RecordStubGenerator.fs
++++ b/src/FsAutoComplete.Core/RecordStubGenerator.fs
+@@ -21,6 +21,7 @@ type RecordExpr =
+   { Expr: SynExpr
+     CopyExprOption: option<SynExpr * BlockSeparator>
+     FieldExprList: SynExprRecordField list
++    LastFieldSeparator: BlockSeparator option
+     LastKnownGoodPosForSymbolLookup: Position }
+ 
+ [<RequireQualifiedAccess>]
+@@ -86,13 +87,14 @@ type RecordStubsInsertionParams =
+           |> List.pick (fun (_, indentColumn, lineIdx) -> if lineIdx = maxLineIdx then Some indentColumn else None)
+ 
+         let lastFieldInfo = Seq.last expr.FieldExprList
++        let lastFieldSeparator = expr.LastFieldSeparator
+ 
+         return!
+           match lastFieldInfo with
+           | SynExprRecordField(expr = None) -> None
+           | SynExprRecordField(
+-              fieldName = (SynLongIdent(id = _ :: _), true); expr = Some expr; blockSeparator = semiColonOpt) ->
+-            match semiColonOpt with
++              fieldName = (SynLongIdent(id = _ :: _), true); expr = Some expr) ->
++            match lastFieldSeparator with
+             | None ->
+               { Kind = PositionKind.AfterLastField
+                 IndentColumn = indentColumn
+@@ -194,14 +196,21 @@ let tryFindRecordExprInBufferAtPos (codeGenService: ICodeGenerationService) (pos
+       ||> ParsedInput.tryPick (fun _path node ->
+         match node with
+         | SyntaxNode.SynExpr(SynExpr.Record(recordFields = recordFields; copyInfo = copyInfo) as synExpr) ->
++          let fields =
++            recordFields
++            |> List.choose (function
++              | SynExprRecordFieldOrSpread.Field(field, separator) -> Some(field, separator)
++              | SynExprRecordFieldOrSpread.Spread _ -> None)
++
+           Some
+             { Expr = synExpr
+               CopyExprOption = copyInfo
+-              FieldExprList = recordFields
++              FieldExprList = List.map fst fields
++              LastFieldSeparator = fields |> List.tryLast |> Option.bind snd
+               LastKnownGoodPosForSymbolLookup =
+-                recordFields
++                fields
+                 |> List.tryLast
+-                |> Option.map (fun (SynExprRecordField(fieldName = (id, _))) -> id.Range.Start)
++                |> Option.map (fun (SynExprRecordField(fieldName = (id, _)), _) -> id.Range.Start)
+                 |> Option.defaultValue synExpr.Range.Start }
+         | _ -> None)
+ 
+@@ -217,19 +226,19 @@ let checkThatRecordExprEndsWithRBrace (codeGenService: ICodeGenerationService) (
+       | _ ->
+         let lastField = Seq.last expr.FieldExprList
+ 
+-        match lastField with
+-        | SynExprRecordField(blockSeparator = Some(semiColonRange, Some _semiColonEndPos)) ->
++        match lastField, expr.LastFieldSeparator with
++        | _, Some(semiColonRange, Some _semiColonEndPos) ->
+           // The last field ends with a ';'
+           // Look here: { field = expr;<start> ... }<end>
+           Some(Range.unionRanges semiColonRange.EndRange expr.Expr.Range.EndRange)
+ 
+ 
+-        | SynExprRecordField(expr = Some fieldExpr) ->
++        | SynExprRecordField(expr = Some fieldExpr), _ ->
+           // The last field doesn't end with a ';'
+           // Look here: { field = expr<start> ... }<end>
+           Some(Range.unionRanges fieldExpr.Range.EndRange expr.Expr.Range.EndRange)
+ 
+-        | SynExprRecordField(expr = None) ->
++        | SynExprRecordField(expr = None), _ ->
+           // We don't allow generation when the last field isn't assigned an expression
+           None
+ 
+diff --git a/src/FsAutoComplete.Core/SignatureFormatter.fs b/src/FsAutoComplete.Core/SignatureFormatter.fs
+index b3c5fda..e65f003 100644
+--- a/src/FsAutoComplete.Core/SignatureFormatter.fs
++++ b/src/FsAutoComplete.Core/SignatureFormatter.fs
+@@ -131,7 +131,10 @@ module SignatureFormatter =
+         |> List.map ParameterType.displayName
+         |> String.join " -> "
+       elif typ.IsGenericParameter then // no longer need to differentiate between SRTP and normal generic parameter types
+-        "'" + typ.GenericParameter.Name
++        // FCS shows a type parameter that has a polymorphic variant row as the row itself
++        match typ.Format context with
++        | row when row.StartsWith("[", StringComparison.Ordinal) || row.StartsWith("([", StringComparison.Ordinal) -> row
++        | _ -> "'" + typ.GenericParameter.Name
+       elif typ.HasTypeDefinition && typ.GenericArguments.Count > 0 then
+         let typeDef = typ.TypeDefinition
+ 
+diff --git a/src/FsAutoComplete.Core/TestAdapter.fs b/src/FsAutoComplete.Core/TestAdapter.fs
+index 2bb0567..f69eab4 100644
+--- a/src/FsAutoComplete.Core/TestAdapter.fs
++++ b/src/FsAutoComplete.Core/TestAdapter.fs
+@@ -223,7 +223,9 @@ let getExpectoTests (ast: ParsedInput) : TestAdapterEntry<range> list =
+       visitExpr parent letOrUse.Body
+     | SynExpr.Record(_, _, fields, _) ->
+       fields
+-      |> List.choose (fun (SynExprRecordField(expr = expr)) -> expr)
++      |> List.choose (function
++        | SynExprRecordFieldOrSpread.Field(SynExprRecordField(expr = expr), _) -> expr
++        | SynExprRecordFieldOrSpread.Spread(SynExprSpread(expr = expr), _) -> Some expr)
+       |> List.iter (visitExpr parent)
+     | SynExpr.MatchLambda(_, _, clauses, _, _) -> visitMatches parent clauses
+     | SynExpr.ObjExpr(bindings = bindings) -> visitBindings parent bindings
+@@ -297,7 +299,7 @@ let getNUnitTest (ast: ParsedInput) : TestAdapterEntry<range> list =
+ 
+   and visitTypeDef parent t =
+     let (SynTypeDefn(typeInfo = ci; typeRepr = om; members = members)) = t
+-    let (SynComponentInfo(longId = ids; range = r)) = ci
++    let ids, r = ci.LongIdent, ci.Range
+     let name = String.concat "." [ for i in ids -> i.idText ]
+ 
+     let moduleType =
+@@ -357,7 +359,7 @@ let getNUnitTest (ast: ParsedInput) : TestAdapterEntry<range> list =
+           | SynModuleDecl.Types(typeDefns, _) ->
+             typeDefns
+             |> List.map (fun (SynTypeDefn(typeInfo = ci)) ->
+-              let (SynComponentInfo(longId = ids)) = ci
++              let ids = ci.LongIdent
+               String.concat "." [ for i in ids -> i.idText ])
+             |> List.append types
+           | _ -> types)
+@@ -370,7 +372,7 @@ let getNUnitTest (ast: ParsedInput) : TestAdapterEntry<range> list =
+         for b in bindings do
+           visitBinding parent b
+       | SynModuleDecl.NestedModule(moduleInfo = ci; decls = decls) ->
+-        let (SynComponentInfo(longId = ids; range = r)) = ci
++        let ids, r = ci.LongIdent, ci.Range
+         let name = String.concat "." [ for i in ids -> i.idText ]
+ 
+         let moduleType =
+@@ -471,7 +473,7 @@ let getXUnitTest ast : TestAdapterEntry<range> list =
+ 
+   and visitTypeDef parent t =
+     let (SynTypeDefn(typeInfo = ci; typeRepr = om; members = members)) = t
+-    let (SynComponentInfo(longId = ids; range = r)) = ci
++    let ids, r = ci.LongIdent, ci.Range
+     let name = String.concat "." [ for i in ids -> i.idText ]
+ 
+     let moduleType =
+@@ -531,7 +533,7 @@ let getXUnitTest ast : TestAdapterEntry<range> list =
+           | SynModuleDecl.Types(typeDefns, _) ->
+             typeDefns
+             |> List.map (fun (SynTypeDefn(typeInfo = ci)) ->
+-              let (SynComponentInfo(longId = ids)) = ci
++              let ids = ci.LongIdent
+               String.concat "." [ for i in ids -> i.idText ])
+             |> List.append types
+           | _ -> types)
+@@ -544,7 +546,7 @@ let getXUnitTest ast : TestAdapterEntry<range> list =
+         for b in bindings do
+           visitBinding parent b
+       | SynModuleDecl.NestedModule(moduleInfo = ci; decls = decls) ->
+-        let (SynComponentInfo(longId = ids; range = r)) = ci
++        let ids, r = ci.LongIdent, ci.Range
+         let name = String.concat "." [ for i in ids -> i.idText ]
+ 
+         let moduleType =
+diff --git a/src/FsAutoComplete.Core/TipFormatter.fs b/src/FsAutoComplete.Core/TipFormatter.fs
+index 433a8a1..5b8f186 100644
+--- a/src/FsAutoComplete.Core/TipFormatter.fs
++++ b/src/FsAutoComplete.Core/TipFormatter.fs
+@@ -1467,6 +1467,7 @@ let private formatTaggedText (t: TaggedText) : string =
+   | TextTag.StringLiteral
+   | TextTag.Text
+   | TextTag.Punctuation
++  | TextTag.UnresolvedName
+   | TextTag.UnknownType -> t.Text
+   | TextTag.UnknownEntity
+   | TextTag.Enum
+@@ -1499,7 +1500,7 @@ let formatCompletionItemTip (ToolTipText tips) : (string * string) =
+   |> List.pick (function
+     | ToolTipElement.Group items ->
+       let makeTooltip (tipElement: ToolTipElementData) =
+-        let header = formatUntaggedTexts tipElement.MainDescription
++        let header = formatUntaggedTexts tipElement.MainDescription.Parts
+ 
+         let body =
+           match tryGetXmlDocMember tipElement.XmlDoc with
+@@ -1521,7 +1522,7 @@ let formatPlainTip (ToolTipText tips) : (string * string) =
+   |> List.pick (function
+     | ToolTipElement.Group items ->
+       let t = items |> Seq.head
+-      let signature = formatUntaggedTexts t.MainDescription
++      let signature = formatUntaggedTexts t.MainDescription.Parts
+ 
+       let description =
+         match tryGetXmlDocMember t.XmlDoc with
+@@ -1602,7 +1603,7 @@ let private tryComputeTooltipInfo
+       "**Generic Parameters**"
+       + nl
+       + nl
+-      + formatGenericParameters tooltipData.TypeMapping
++      + formatGenericParameters (tooltipData.TypeMapping |> List.map _.Parts)
+       |> Some
+ 
+   tips
+@@ -1793,8 +1794,8 @@ let extractSignature (ToolTipText tips) =
+     | ToolTipElement.Group gs ->
+       List.tryPick
+         (fun (t: ToolTipElementData) ->
+-          if not (Array.isEmpty t.MainDescription) then
+-            Some t.MainDescription
++          if not t.MainDescription.IsEmpty then
++            Some t.MainDescription.Parts
+           else
+             None)
+         gs
+@@ -1813,7 +1814,7 @@ let extractGenericParameters (ToolTipText tips) =
+       List.tryPick
+         (fun (t: ToolTipElementData) ->
+           if not (t.TypeMapping.IsEmpty) then
+-            Some t.TypeMapping
++            Some(t.TypeMapping |> List.map _.Parts)
+           else
+             None)
+         gs
+diff --git a/src/FsAutoComplete.Core/UnionPatternMatchCaseGenerator.fs b/src/FsAutoComplete.Core/UnionPatternMatchCaseGenerator.fs
+index dc432d5..e237f02 100644
+--- a/src/FsAutoComplete.Core/UnionPatternMatchCaseGenerator.fs
++++ b/src/FsAutoComplete.Core/UnionPatternMatchCaseGenerator.fs
+@@ -56,6 +56,8 @@ let private clauseIsCandidateForCodeGen (cursorPos: Position) (SynMatchClause(pa
+     | SynPat.ArrayOrList _
+     | SynPat.Record _
+     | SynPat.Null _
++    | SynPat.PolymorphicVariant _
++    | SynPat.PolymorphicVariantType _
+     | SynPat.IsInst _
+     | SynPat.QuoteExpr _
+     | SynPat.InstanceMember _
+@@ -151,7 +153,10 @@ let private tryFindPatternMatchExprInParsedInput (pos: Position) (parsedInput: P
+ 
+       | SynExpr.Record(_inheritOpt, copyOpt, fields, _range) ->
+         let fieldExprList =
+-          fields |> List.choose (fun (SynExprRecordField(expr = expr)) -> expr)
++          fields
++          |> List.choose (function
++            | SynExprRecordFieldOrSpread.Field(SynExprRecordField(expr = expr), _) -> expr
++            | SynExprRecordFieldOrSpread.Spread(SynExprSpread(expr = expr), _) -> Some expr)
+ 
+         match copyOpt with
+         | Some(copyExpr, _blockSeparator) -> List.tryPick walkExpr (copyExpr :: fieldExprList)
+@@ -310,6 +315,8 @@ let getWrittenCases (patMatchExpr: PatternMatchExpr) =
+     | SynPat.IsInst _
+     | SynPat.QuoteExpr _
+     | SynPat.ListCons _
++    | SynPat.PolymorphicVariant _
++    | SynPat.PolymorphicVariantType _
+     | SynPat.FromParseError _ -> false
+ 
+     | SynPat.Tuple(elementPats = innerPatList) -> List.forall checkPattern innerPatList
+diff --git a/src/FsAutoComplete.Core/UntypedAstUtils.fs b/src/FsAutoComplete.Core/UntypedAstUtils.fs
+index 455cd4f..bec1d69 100644
+--- a/src/FsAutoComplete.Core/UntypedAstUtils.fs
++++ b/src/FsAutoComplete.Core/UntypedAstUtils.fs
+@@ -146,6 +146,9 @@ module Syntax =
+         walkMemberSig sign
+       | SynTypeConstraint.WhereSelfConstrained(t, _) -> walkType t
+       | SynTypeConstraint.WhereTyparNotSupportsNull(t, _, _) -> walkTypar t
++      | SynTypeConstraint.WhereTyparIsPolymorphicVariant(t, ty, _) ->
++        walkTypar t
++        walkType ty
+ 
+     and walkPat s =
+       walker.WalkPat s
+@@ -175,6 +178,8 @@ module Syntax =
+       | SynPat.OptionalVal _ -> ()
+       | SynPat.InstanceMember _ -> ()
+       | SynPat.FromParseError _ -> ()
++      | SynPat.PolymorphicVariant(argPat = argPat) -> Option.iter walkPat argPat
++      | SynPat.PolymorphicVariantType(t, _) -> walkType t
+       | SynPat.As(lpat, rpat, _) ->
+         walkPat lpat
+         walkPat rpat
+@@ -245,6 +250,12 @@ module Syntax =
+         List.iter walkType types
+       | SynType.StaticConstantNull(_) -> ()
+       | SynType.WithNull(t, _, _, _) -> walkType t
++      | SynType.PolymorphicVariant(elements = elements) ->
++        for element in elements do
++          match element with
++          | SynPolymorphicVariantElement.Tag(payloadType = Some t)
++          | SynPolymorphicVariantElement.Include(variantType = t) -> walkType t
++          | SynPolymorphicVariantElement.Tag _ -> ()
+ 
+     and walkClause (SynMatchClause(pat, e1, e2, _, _, _) as s) =
+       walker.WalkClause s
+@@ -306,7 +317,9 @@ module Syntax =
+       | SynExpr.Record(_, _, fields, _) ->
+ 
+         fields
+-        |> List.iter (fun (SynExprRecordField(fieldName = (_, _); expr = e)) -> e |> Option.iter walkExpr)
++        |> List.iter (function
++          | SynExprRecordFieldOrSpread.Field(SynExprRecordField(expr = e), _) -> e |> Option.iter walkExpr
++          | SynExprRecordFieldOrSpread.Spread(SynExprSpread(expr = e), _) -> walkExpr e)
+       | SynExpr.ObjExpr(ty, argOpt, _, bindings, _, ifaces, _, _) ->
+ 
+         argOpt |> Option.iter (fun (e, _) -> walkExpr e)
+@@ -361,6 +374,7 @@ module Syntax =
+       | SynExpr.LongIdent _ -> ()
+       | SynExpr.Set _ -> ()
+       | SynExpr.Null _ -> ()
++      | SynExpr.PolymorphicVariant _ -> ()
+       | SynExpr.ImplicitZero _ -> ()
+       | SynExpr.MatchBang(range = _) -> ()
+       | SynExpr.LibraryOnlyILAssembly _ -> ()
+@@ -494,7 +508,11 @@ module Syntax =
+       match s with
+       | SynTypeDefnSimpleRepr.Enum(cases, _) -> List.iter walkEnumCase cases
+       | SynTypeDefnSimpleRepr.Union(_, cases, _) -> List.iter walkUnionCase cases
+-      | SynTypeDefnSimpleRepr.Record(_, fields, _) -> List.iter walkField fields
++      | SynTypeDefnSimpleRepr.Record(_, fields, _) ->
++        fields
++        |> List.iter (function
++          | SynFieldOrSpread.Field field -> walkField field
++          | SynFieldOrSpread.Spread(SynTypeSpread(ty = t)) -> walkType t)
+       | SynTypeDefnSimpleRepr.TypeAbbrev(_, t, _) -> walkType t
+       | SynTypeDefnSimpleRepr.General _ -> ()
+       | SynTypeDefnSimpleRepr.LibraryOnlyILAssembly _ -> ()
+@@ -503,7 +521,7 @@ module Syntax =
+ 
+     and walkComponentInfo
+       (SynComponentInfo(
+-        attributes = AllAttrs attrs; typeParams = typars; constraints = constraints; longId = _; range = _) as s)
++        attributes = AllAttrs attrs; typeParams = typars; constraints = constraints; range = _) as s)
+       =
+       walker.WalkComponentInfo s
+       List.iter walkAttribute attrs
+@@ -636,7 +654,8 @@ module FoldingRange =
+ 
+     override _.WalkInterpolatedStringPart i =
+       match i with
+-      | SynInterpolatedStringPart.FillExpr(qualifiers = Some ident) -> addIfInside ident.idRange
++      | SynInterpolatedStringPart.FillExpr(formatting = SynInterpolationFormatting.DotNet(format = Some ident)) ->
++        addIfInside ident.idRange
+       | SynInterpolatedStringPart.String(_, r) -> addIfInside r
+       | _ -> ()
+ 
+@@ -767,7 +786,9 @@ module FsacSemanticTokenSites =
+       if not (delegateDeclarationRanges.Contains(id.idRange)) then
+         declarations.Add(id.idRange)
+ 
+-    override _.WalkTypeDefn(SynTypeDefn(typeInfo = SynComponentInfo(longId = idents); typeRepr = typeRepr)) =
++    override _.WalkTypeDefn(SynTypeDefn(typeInfo = typeInfo; typeRepr = typeRepr)) =
++      let idents = typeInfo.LongIdent
++
+       match typeRepr with
+       | SynTypeDefnRepr.ObjectModel(kind = SynTypeDefnKind.Augmentation _) -> ()
+       | SynTypeDefnRepr.ObjectModel(SynTypeDefnKind.Delegate _, members, _) ->
+@@ -779,7 +800,9 @@ module FsacSemanticTokenSites =
+           | _ -> ())
+       | _ -> tryLastIdentRange idents |> Option.iter definitions.Add
+ 
+-    override _.WalkTypeDefnSig(SynTypeDefnSig(typeInfo = SynComponentInfo(longId = idents); typeRepr = typeRepr)) =
++    override _.WalkTypeDefnSig(SynTypeDefnSig(typeInfo = typeInfo; typeRepr = typeRepr)) =
++      let idents = typeInfo.LongIdent
++
+       match typeRepr with
+       | SynTypeDefnSigRepr.ObjectModel(kind = SynTypeDefnKind.Augmentation _) -> ()
+       | SynTypeDefnSigRepr.ObjectModel(SynTypeDefnKind.Delegate _, members, _) ->
+diff --git a/src/FsAutoComplete/CodeFixes/AddBindingToSignatureFile.fs b/src/FsAutoComplete/CodeFixes/AddBindingToSignatureFile.fs
+index b38bd65..6b2ec24 100644
+--- a/src/FsAutoComplete/CodeFixes/AddBindingToSignatureFile.fs
++++ b/src/FsAutoComplete/CodeFixes/AddBindingToSignatureFile.fs
+@@ -11,6 +11,8 @@ open FsAutoComplete
+ open FsAutoComplete.LspHelpers
+ open FsAutoComplete.Patterns.SymbolUse
+ 
++let private (|LongIdOf|) (componentInfo: SynComponentInfo) = componentInfo.LongIdent
++
+ let title = "Add binding to signature file"
+ 
+ let (|IdentifierFromHeadPat|_|) (pat: SynPat) =
+@@ -99,7 +101,7 @@ let fix
+                   | SyntaxNode.SynModuleOrNamespaceSig(SynModuleOrNamespaceSig(
+                       longId = longId; range = mParent; decls = decls))
+                   | SyntaxNode.SynModuleSigDecl(SynModuleSigDecl.NestedModule(
+-                    moduleInfo = SynComponentInfo(longId = longId); range = mParent; moduleDecls = decls)) ->
++                    moduleInfo = LongIdOf longId; range = mParent; moduleDecls = decls)) ->
+                     let mSigName = mkLongIdRange longId
+ 
+                     // `parentSigLocation` will only contain the single identifier in case a module is prefixed with a namespace.
+diff --git a/src/FsAutoComplete/CodeFixes/AddPrivateAccessModifier.fs b/src/FsAutoComplete/CodeFixes/AddPrivateAccessModifier.fs
+index 9724d19..bb3d6f1 100644
+--- a/src/FsAutoComplete/CodeFixes/AddPrivateAccessModifier.fs
++++ b/src/FsAutoComplete/CodeFixes/AddPrivateAccessModifier.fs
+@@ -9,6 +9,8 @@ open FSharp.Compiler.Syntax
+ open FSharp.Compiler.SyntaxTrivia
+ open FSharp.Compiler.Text.Range
+ 
++let private (|LongIdOf|) (componentInfo: SynComponentInfo) = componentInfo.LongIdent
++
+ let title = "Add private access modifier"
+ 
+ type SymbolUseWorkspace =
+@@ -75,7 +77,7 @@ let private getRangesAndPlacement input pos =
+       match d with
+       // Nested Module
+       | SynModuleDecl.NestedModule(
+-          moduleInfo = SynComponentInfo(attributes = attributes; longId = longId; accessibility = None)
++          moduleInfo = (SynComponentInfo(attributes = attributes; accessibility = None) & LongIdOf longId)
+           trivia = { ModuleKeyword = Some r }) as m when longIdentContainsPos longId pos ->
+         let editRange = getEditRangeForModule attributes r pos.Line
+         let path = (SyntaxNode.SynModule m) :: path
+@@ -96,7 +98,7 @@ let private getRangesAndPlacement input pos =
+           match td with
+           // Class Type
+           | SynTypeDefn(
+-              typeInfo = SynComponentInfo(longId = longId; accessibility = None; range = r)
++              typeInfo = (SynComponentInfo(accessibility = None; range = r) & LongIdOf longId)
+               typeRepr = SynTypeDefnRepr.ObjectModel _) as t when longIdentContainsPos longId pos ->
+             let editRange = r.WithEnd r.Start
+             let path = SyntaxNode.SynTypeDefn t :: path
+diff --git a/src/FsAutoComplete/CodeFixes/AddTypeAliasToSignatureFile.fs b/src/FsAutoComplete/CodeFixes/AddTypeAliasToSignatureFile.fs
+index 7baa7df..2606fc6 100644
+--- a/src/FsAutoComplete/CodeFixes/AddTypeAliasToSignatureFile.fs
++++ b/src/FsAutoComplete/CodeFixes/AddTypeAliasToSignatureFile.fs
+@@ -10,6 +10,8 @@ open FsAutoComplete
+ open FsAutoComplete.LspHelpers
+ open FsAutoComplete.Patterns.SymbolUse
+ 
++let private (|LongIdOf|) (componentInfo: SynComponentInfo) = componentInfo.LongIdent
++
+ let mkLongIdRange (lid: LongIdent) = lid |> List.map (fun ident -> ident.idRange) |> List.reduce Range.unionRanges
+ 
+ let (|AllOpenOrHashDirective|_|) (decls: SynModuleSigDecl list) : range option =
+@@ -55,7 +57,7 @@ let fix
+         ||> ParsedInput.tryPick (fun _path node ->
+           match node with
+           | SyntaxNode.SynTypeDefn(SynTypeDefn(
+-              typeInfo = SynComponentInfo(longId = [ typeIdent ])
++              typeInfo = LongIdOf [ typeIdent ]
+               typeRepr = SynTypeDefnRepr.Simple(simpleRepr = SynTypeDefnSimpleRepr.TypeAbbrev _)) as tdn) when
+             (Range.rangeContainsPos tdn.FullRange fcsPos)
+             ->
+@@ -86,7 +88,7 @@ let fix
+               match node with
+               | SyntaxNode.SynModuleOrNamespaceSig(SynModuleOrNamespaceSig(longId = longId; decls = decls))
+               | SyntaxNode.SynModuleSigDecl(SynModuleSigDecl.NestedModule(
+-                moduleInfo = SynComponentInfo(longId = longId); moduleDecls = decls)) ->
++                moduleInfo = LongIdOf longId; moduleDecls = decls)) ->
+                 let mSigName = mkLongIdRange longId
+ 
+                 // `parentSigLocation` will only contain the single identifier in case a module is prefixed with a namespace.
+diff --git a/src/FsAutoComplete/CodeFixes/ConvertTripleSlashCommentToXmlTaggedDoc.fs b/src/FsAutoComplete/CodeFixes/ConvertTripleSlashCommentToXmlTaggedDoc.fs
+index 80edd6e..e9965d2 100644
+--- a/src/FsAutoComplete/CodeFixes/ConvertTripleSlashCommentToXmlTaggedDoc.fs
++++ b/src/FsAutoComplete/CodeFixes/ConvertTripleSlashCommentToXmlTaggedDoc.fs
+@@ -34,7 +34,10 @@ let private isAstElemWithPreXmlDoc input pos =
+       None
+ 
+   let (|AnyUnelaborated|_|) getXmlDoc = List.tryPick (getXmlDoc >> (|Unelaborated|_|))
+-  let field (SynField(xmlDoc = xmlDoc)) = xmlDoc
++  let field =
++    function
++    | SynFieldOrSpread.Field(SynField(xmlDoc = xmlDoc)) -> xmlDoc
++    | SynFieldOrSpread.Spread _ -> FSharp.Compiler.Xml.PreXmlDoc.Empty
+   let unionCase (SynUnionCase(xmlDoc = xmlDoc)) = xmlDoc
+   let enumCase (SynEnumCase(xmlDoc = xmlDoc)) = xmlDoc
+ 
+@@ -47,7 +50,7 @@ let private isAstElemWithPreXmlDoc input pos =
+     | SyntaxNode.SynBinding(SynBinding(xmlDoc = Unelaborated xmlDoc))
+     | SyntaxNode.SynTypeDefn(SynTypeDefn(typeInfo = SynComponentInfo(xmlDoc = Unelaborated xmlDoc)))
+     | SyntaxNode.SynTypeDefn(SynTypeDefn(
+-      typeRepr = SynTypeDefnRepr.Simple(SynTypeDefnSimpleRepr.Record(recordFields = AnyUnelaborated field xmlDoc), _)))
++      typeRepr = SynTypeDefnRepr.Simple(SynTypeDefnSimpleRepr.Record(recordFieldsAndSpreads = AnyUnelaborated field xmlDoc), _)))
+     | SyntaxNode.SynTypeDefn(SynTypeDefn(
+       typeRepr = SynTypeDefnRepr.Simple(SynTypeDefnSimpleRepr.Union(unionCases = AnyUnelaborated unionCase xmlDoc), _)))
+     | SyntaxNode.SynTypeDefn(SynTypeDefn(
+diff --git a/src/FsAutoComplete/CodeFixes/ExprTypeMismatch.fs b/src/FsAutoComplete/CodeFixes/ExprTypeMismatch.fs
+index 7832e34..b7b38bc 100644
+--- a/src/FsAutoComplete/CodeFixes/ExprTypeMismatch.fs
++++ b/src/FsAutoComplete/CodeFixes/ExprTypeMismatch.fs
+@@ -79,13 +79,13 @@ let fix (getParseResultsForFile: GetParseResultsForFile) : CodeFix =
+           if diagnostic.Range.StartLine <> diagnostic.Range.EndLine then
+             []
+           elif
+-            extendedData.ExpectedType.BasicQualifiedName = "Microsoft.FSharp.Core.option`1"
+-            || extendedData.ExpectedType.BasicQualifiedName = "Microsoft.FSharp.Core.voption`1"
++            extendedData.ExpectedType.BasicQualifiedName = Some "Microsoft.FSharp.Core.option`1"
++            || extendedData.ExpectedType.BasicQualifiedName = Some "Microsoft.FSharp.Core.voption`1"
+           then
+             let currentExpr = sourceText.GetSubTextFromRange diagnostic.Range
+ 
+             let isValueOption =
+-              extendedData.ExpectedType.BasicQualifiedName = "Microsoft.FSharp.Core.voption`1"
++              extendedData.ExpectedType.BasicQualifiedName = Some "Microsoft.FSharp.Core.voption`1"
+ 
+             let wrapIn = if isValueOption then "ValueSome" else "Some"
+             let replaceWithNone = if isValueOption then "ValueNone" else "None"
+diff --git a/src/FsAutoComplete/CodeFixes/GenerateAnonRecordStub.fs b/src/FsAutoComplete/CodeFixes/GenerateAnonRecordStub.fs
+index b934efe..b2d24d9 100644
+--- a/src/FsAutoComplete/CodeFixes/GenerateAnonRecordStub.fs
++++ b/src/FsAutoComplete/CodeFixes/GenerateAnonRecordStub.fs
+@@ -100,7 +100,10 @@ let fix (getParseResultsForFile: GetParseResultsForFile) : CodeFix =
+               ->
+               let currentNames =
+                 fields
+-                |> List.map (fun (synLongIdent, _, _) -> (synLongIdent.LongIdent |> List.last).idText)
++                |> List.choose (function
++                  | SynExprAnonRecordFieldOrSpread.Field(SynExprAnonRecordField(fieldName = synLongIdent), _) ->
++                    Some (synLongIdent.LongIdent |> List.last).idText
++                  | SynExprAnonRecordFieldOrSpread.Spread _ -> None)
+                 |> Set.ofList
+ 
+               Some(r, currentNames)
+diff --git a/src/FsAutoComplete/CodeFixes/RemoveRedundantAttributeSuffix.fs b/src/FsAutoComplete/CodeFixes/RemoveRedundantAttributeSuffix.fs
+index 14a1c7a..77f2fef 100644
+--- a/src/FsAutoComplete/CodeFixes/RemoveRedundantAttributeSuffix.fs
++++ b/src/FsAutoComplete/CodeFixes/RemoveRedundantAttributeSuffix.fs
+@@ -21,7 +21,9 @@ let fix (getParseResultsForFile: GetParseResultsForFile) : CodeFix =
+         (fcsPos, parseAndCheck.GetParseResults.ParseTree)
+         ||> ParsedInput.tryPick (fun _path node ->
+           let (|RecordFieldAttributes|) =
+-            List.collect (fun (SynField(attributes = attributes)) -> attributes)
++            List.collect (function
++              | SynFieldOrSpread.Field(SynField(attributes = attributes)) -> attributes
++              | SynFieldOrSpread.Spread _ -> [])
+ 
+           let (|UnionFieldAttributes|) =
+             List.collect (fun (SynUnionCase(attributes = attributes)) -> attributes)
+@@ -42,7 +44,7 @@ let fix (getParseResultsForFile: GetParseResultsForFile) : CodeFix =
+           | SyntaxNode.SynTypeDefn(SynTypeDefn(typeInfo = SynComponentInfo(attributes = Suffixed(_ :: _ as attributes))))
+           | SyntaxNode.SynTypeDefn(SynTypeDefn(
+             typeRepr = SynTypeDefnRepr.Simple(SynTypeDefnSimpleRepr.Record(
+-                                                recordFields = RecordFieldAttributes(Suffixed(_ :: _ as attributes))),
++                                                recordFieldsAndSpreads = RecordFieldAttributes(Suffixed(_ :: _ as attributes))),
+                                               _)))
+           | SyntaxNode.SynTypeDefn(SynTypeDefn(
+             typeRepr = SynTypeDefnRepr.Simple(SynTypeDefnSimpleRepr.Union(
+diff --git a/src/FsAutoComplete/CodeFixes/UpdateTypeAbbreviationInSignatureFile.fs b/src/FsAutoComplete/CodeFixes/UpdateTypeAbbreviationInSignatureFile.fs
+index 1546623..3864cc0 100644
+--- a/src/FsAutoComplete/CodeFixes/UpdateTypeAbbreviationInSignatureFile.fs
++++ b/src/FsAutoComplete/CodeFixes/UpdateTypeAbbreviationInSignatureFile.fs
+@@ -10,6 +10,8 @@ open FsAutoComplete
+ open FsAutoComplete.LspHelpers
+ open FsAutoComplete.Patterns.SymbolUse
+ 
++let private (|LongIdOf|) (componentInfo: SynComponentInfo) = componentInfo.LongIdent
++
+ let title = "Update type abbreviation in signature file"
+ 
+ let fix (getParseResultsForFile: GetParseResultsForFile) : CodeFix =
+@@ -29,7 +31,7 @@ let fix (getParseResultsForFile: GetParseResultsForFile) : CodeFix =
+         ||> ParsedInput.tryPick (fun _ node ->
+           match node with
+           | SyntaxNode.SynTypeDefn(SynTypeDefn(
+-              typeInfo = SynComponentInfo(longId = [ typeIdent ])
++              typeInfo = LongIdOf [ typeIdent ]
+               typeRepr = SynTypeDefnRepr.Simple(simpleRepr = SynTypeDefnSimpleRepr.TypeAbbrev _; range = mBody))) when
+             Range.equals typeIdent.idRange mDiag
+             ->
+@@ -55,7 +57,7 @@ let fix (getParseResultsForFile: GetParseResultsForFile) : CodeFix =
+             ||> ParsedInput.tryPick (fun _path node ->
+               match node with
+               | SyntaxNode.SynTypeDefnSig(SynTypeDefnSig(
+-                  typeInfo = SynComponentInfo(longId = [ typeIdent ])
++                  typeInfo = LongIdOf [ typeIdent ]
+                   typeRepr = SynTypeDefnSigRepr.Simple(repr = SynTypeDefnSimpleRepr.TypeAbbrev _; range = m))) when
+                 Range.equals typeIdent.idRange signatureLocation
+                 ->
+diff --git a/src/FsAutoComplete/LspServers/AdaptiveFSharpLspServer.fs b/src/FsAutoComplete/LspServers/AdaptiveFSharpLspServer.fs
+index 9fb426e..0625a3e 100644
+--- a/src/FsAutoComplete/LspServers/AdaptiveFSharpLspServer.fs
++++ b/src/FsAutoComplete/LspServers/AdaptiveFSharpLspServer.fs
+@@ -1205,7 +1205,7 @@ type AdaptiveFSharpLspServer
+                     m.Parameters
+                     |> Array.map (fun p ->
+                       { ParameterInformation.Label = U2.C1 p.ParameterName
+-                        Documentation = Some(U2.C1(TipFormatter.cleanParameterDisplay p.Display)) })
++                        Documentation = Some(U2.C1(TipFormatter.cleanParameterDisplay p.Display.Parts)) })
+ 
+                 let d =
+                   U2.C2(
+diff --git a/src/FsAutoComplete/LspServers/AdaptiveServerState.fs b/src/FsAutoComplete/LspServers/AdaptiveServerState.fs
+index d437ec5..295b5a5 100644
+--- a/src/FsAutoComplete/LspServers/AdaptiveServerState.fs
++++ b/src/FsAutoComplete/LspServers/AdaptiveServerState.fs
+@@ -2340,7 +2340,7 @@ type AdaptiveState
+           | Error _ -> return Seq.empty
+           | Ok tyRes ->
+             let! ct = Async.CancellationToken
+-            let usages = tyRes.GetCheckResults.GetUsesOfSymbolInFile(symbol, ct)
++            let usages = tyRes.GetCheckResults.GetUsesOfSymbolInFile(symbol, cancellationToken = ct)
+             return usages |> Seq.map (fun u -> u.Range)
+       }
+ 

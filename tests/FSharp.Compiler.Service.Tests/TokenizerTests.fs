@@ -264,6 +264,13 @@ let x = 2
     Assert.True(hasHashElif, "Expected at least one token with Kind = FSharpTokenKind.HashElif")
 
 [<Fact>]
+let ``FSharpLexer.Tokenize produces Identifier token kind for polymorphic variant tags``() =
+    let tokens = ResizeArray<FSharpToken>()
+    FSharpLexer.Tokenize(FSharp.Compiler.Text.SourceText.ofString "let c = `Red", tokens.Add, langVersion = "preview")
+    let kinds = tokens |> Seq.filter (fun t -> t.Range.StartColumn = 8) |> Seq.map _.Kind
+    Assert.Contains(FSharpTokenKind.Identifier, kinds)
+
+[<Fact>]
 let ``Unfinished idents``() =
     let tokenizedLines =
       tokenizeLines

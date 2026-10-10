@@ -1572,7 +1572,8 @@ type FSharpToken =
         | INFIX_AT_HAT_OP _ -> FSharpTokenKind.InfixAtHatOperator
         | INFIX_COMPARE_OP _ -> FSharpTokenKind.InfixCompareOperator
         | INFIX_STAR_STAR_OP _ -> FSharpTokenKind.InfixStarStarOperator
-        | IDENT _ -> FSharpTokenKind.Identifier
+        | IDENT _
+        | POLYVARIANT_TAG _ -> FSharpTokenKind.Identifier
         | KEYWORD_STRING _ -> FSharpTokenKind.KeywordString
         | INTERP_STRING_BEGIN_END _
         | INTERP_STRING_BEGIN_PART _

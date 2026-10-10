@@ -766,6 +766,15 @@ module PrintTypes =
             else
                 (varL ^^ sepL (tagPunctuation ":>") ^^ layoutTypeWithInfo denv env typarConstraintTy) |> bracketL
 
+        | None when env.inlinePolyVariantRows ->
+            match tryGetPolyVariantRow typar with
+            | ValueSome row ->
+                let rowL = layoutPolyVariantRow denv { env with inlinePolyVariantRows = false } row
+
+                if Zset.contains typar env.singletons then rowL
+                else bracketL (rowL ^^ wordL (tagKeyword "as") ^^ varL)
+            | ValueNone -> varL
+
         | _ -> varL
 
 
@@ -1363,8 +1372,14 @@ module PrintTypes =
         | [] -> emptyL
 
     let prettyLayoutOfTypeNoConstraints denv ty =
-        let ty, _cxs = PrettyTypes.PrettifyType denv.g ty
-        layoutTypeWithInfoAndPrec denv SimplifyTypes.typeSimplificationInfo0 5 ty
+        let ty, cxs = PrettyTypes.PrettifyType denv.g ty
+
+        let env =
+            { SimplifyTypes.CollectInfo true [ ty ] cxs with
+                inplaceConstraints = SimplifyTypes.typeSimplificationInfo0.inplaceConstraints
+                inlinePolyVariantRows = true }
+
+        layoutTypeWithInfoAndPrec denv env 5 ty
 
     let layoutOfValReturnType denv (vref: ValRef) =
         match vref.ValReprInfo with
